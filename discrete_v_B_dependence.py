@@ -416,11 +416,12 @@ def lorentzian_log_likelihood(
         x: float, 
         y: float, 
         gamma: float, 
-        scaling: float,
+        scaling: NDArray[np.float64],
         quadratic: callable=quadratic,
     ) -> float:
-    a, b, c = params * scaling
-    model = quadratic(x, a, b, c)
+    print(len(params), len(scaling))
+    scaled_params = tuple(params * scaling)
+    model = quadratic(x, *scaled_params)
     residuals = (y - model)**2
     log_likelihood = -npa.sum(npa.log(gamma / (npa.pi * (residuals + gamma**2))))
     return log_likelihood
@@ -850,32 +851,32 @@ def generate_black_to_red(num_colors: int) -> list[tuple[float]]:
     return colorlist
 
 #%%
-data_class = load_multiple_datasets()
-#%%
-D_lims = (0.12, 0.25)
-probe = '11_06'
+#data_class = load_multiple_datasets()
+# #%%
+# D_lims = (0.12, 0.25)
+# probe = '11_06'
 
-results = run_study(data_class, D_lims, probe)
-inspect_study_quality(results, probe)
-plot_study_results(results, probe)
-# %%
-D_lims = (0.115, 0.245)
-probe = '19_20'
+# results = run_study(data_class, D_lims, probe)
+# inspect_study_quality(results, probe)
+# plot_study_results(results, probe)
+# # %%
+# D_lims = (0.115, 0.245)
+# probe = '19_20'
 
-results = run_study(data_class, D_lims, probe)
-inspect_study_quality(results, probe)
-plot_study_results(results, probe)
-# %%
-D_lims = (0.11, 0.24)
-probe = '20_24'
+# results = run_study(data_class, D_lims, probe)
+# inspect_study_quality(results, probe)
+# plot_study_results(results, probe)
+# # %%
+# D_lims = (0.11, 0.24)
+# probe = '20_24'
 
-results = run_study(data_class, D_lims, probe)
-inspect_study_quality(results, probe)
-plot_study_results(results, probe)
-# %%
-D_lims = (0.115, 0.245)
-probe = '06_05'
+# results = run_study(data_class, D_lims, probe)
+# inspect_study_quality(results, probe)
+# plot_study_results(results, probe)
+# # %%
+# D_lims = (0.115, 0.245)
+# probe = '06_05'
 
-results = run_study(data_class, D_lims, probe)
-inspect_study_quality(results, probe)
-plot_study_results(results, probe)
+# results = run_study(data_class, D_lims, probe)
+# inspect_study_quality(results, probe)
+# plot_study_results(results, probe)
