@@ -1,5 +1,8 @@
 # Estimation of 1/2 and 2/3 state's magnetic field dependence
 
+#Model_1: quadratic f(x) = a*x^2 + c
+#Model_2: quadratic f(x) = a*x^2 + b*x + c
+
 ### v=1/2 ###
 # without D correction
 # 11_06: D_lims = (0.10; 0.225, 0.005), n_lims=(-3.2e12, -2.25e12)
@@ -45,7 +48,7 @@ database = 'Database_CD2_3'
 qc.config['core']['db_location'] = 'Volumes/STORE N GO/TD5/database/' + database + '.db'
 qc.initialise_database()
 qc.new_experiment("2023-10-10_tMoTe2.TD5-CD2", sample_name="TD5")
-
+#%%
 ######### Resistance quantum ##########
 h_Planck = 6.62607015e-34
 elementary_q = 1.602176634e-19
@@ -405,8 +408,8 @@ def lorentzian(
     ) -> float:
     return A * cauchy(x, loc=x0, scale=gamma) + al * x + c
 
-def quadratic(x: float, a: float, c: float) -> float:
-    return a*x**2 + c
+def quadratic(x: float, a: float, b: float, c: float) -> float:
+    return a*x**2 + b*x + c
 
 def lorentzian_log_likelihood(
         params: NDArray[np.float64], 
@@ -414,9 +417,10 @@ def lorentzian_log_likelihood(
         y: float, 
         gamma: float, 
         scaling: float,
+        quadratic: callable=quadratic,
     ) -> float:
-    a, c = params * scaling
-    model = a * x**2 + c
+    a, b, c = params * scaling
+    model = quadratic(x, a, b, c)
     residuals = (y - model)**2
     log_likelihood = -npa.sum(npa.log(gamma / (npa.pi * (residuals + gamma**2))))
     return log_likelihood
@@ -515,7 +519,7 @@ def run_fitting_routine(
     Results_class.fit_second_std = np.array(fit_second_std)
     Results_class.fit_R_sq_red = np.array(fit_R_sq_red)
 
-    p0_quadratic = np.array([-1e10, Results_class.x_max_coords[0]])
+    p0_quadratic = np.array([-1e10, 1e10, Results_class.x_max_coords[0]])
 
     popt, pcov = curve_fit(quadratic, 
                            Results_class.B_set_list, 
@@ -688,7 +692,7 @@ def inspect_study_quality(result_dict: dict[float, Results], probe: str) -> None
                             + f'{R_val:.3f}')
 
         fig1.tight_layout()
-        fig1.savefig(f'/Volumes/STORE N GO/Plots/{probe}/D_cuts/{D_cut:.3f}_{probe}_peaks.png', dpi=300)
+        fig1.savefig(f'/Volumes/STORE N GO/Plots/Model_2/{probe}/D_cuts/{D_cut:.3f}_{probe}_peaks.png', dpi=300)
 
         fig2 = plt.figure()
         ax2 = fig2.add_subplot(111)
@@ -716,38 +720,49 @@ def inspect_study_quality(result_dict: dict[float, Results], probe: str) -> None
         ax2.minorticks_on()
         ax2.legend()
 
-        a, c = result_dict[D_cut].MLE_params
+        a, b, c = result_dict[D_cut].MLE_params
         #a_scale, c_scale = find_scale(a_SI_scaling(a)), find_scale(c)
-        a_scale, c_scale = find_scale(a), find_scale(c)
-        a_err, c_err = result_dict[D_cut].MLE_error_autograd
+        a_scale, b_scale, c_scale = find_scale(a), find_scale(b), find_scale(c)
+        a_err, b_err, c_err = result_dict[D_cut].MLE_error_autograd
         #a_err, c_err = a_SI_scaling(a_err)/(10**a_scale), c_err/(10**c_scale)
-        a_err, c_err = a_err/(10**a_scale), c_err/(10**c_scale)
-        a_err_scale, c_err_scale = -find_scale(a_err), -find_scale(c_err)
+        a_err, b_err, c_err = a_err/(10**a_scale), b_err/(10**b_scale), c_err/(10**c_scale)
+        a_err_scale, b_err_scale, c_err_scale = -find_scale(a_err), -find_scale(b_err), -find_scale(c_err)
+
+        if a_err_scale < 0:
+            a_err_scale = 1
+        if b_err_scale < 0:
+            b_err_scale = 1
+        if c_err_scale < 0:
+            c_err_scale = 1
 
         ax2.set_title(f'{probe}, D/$\epsilon_{0}$ = {D_cut:.3f}, ' + 
                       #f'a={(a_SI_scaling(a)*10**(-a_scale)):.{a_err_scale}f}e{a_scale}$\pm$' +
                       f'a={(a*10**(-a_scale)):.{a_err_scale}f}e{a_scale}$\pm$' +
                       f'{(a_err):.{a_err_scale}f}e{a_scale}, ' +
+                      f'b={(b*10**(-b_scale)):.{b_err_scale}f}e{b_scale}$\pm$' +
+                      f'{(b_err):.{b_err_scale}f}e{b_scale}, ' +
                       f'c={(c*10**(-c_scale)):.{c_err_scale}f}e{c_scale}$\pm$' +
                       f'{(c_err):.{c_err_scale}f}e{c_scale}', fontsize=12)
         
-        fig2.savefig(f'/Volumes/STORE N GO/Plots/{probe}/D_cuts/{D_cut:.3f}_{probe}_peak_position_B.png', dpi=300)
-    plt.close('all')
+        fig2.savefig(f'/Volumes/STORE N GO/Plots/Model_2/{probe}/D_cuts/{D_cut:.3f}_{probe}_peak_position_B.png', dpi=300)
+    #plt.close('all')
 
 def plot_study_results(result_dict: Results, probe: str) -> None:
 
     n_post_correction = get_n_correction(probe) - n_correction
 
-    D_list, a_list, c_list, a_err_list, c_err_list, n_B_list = [], [], [], [], [], []
+    D_list, a_list, b_list, c_list, a_err_list, b_err_list, c_err_list, n_B_list = [], [], [], [], [], [], [], []
     for D_cut in result_dict.keys():
         D_list.append(D_cut)
         a_list.append(result_dict[D_cut].MLE_params[0])
-        c_list.append(result_dict[D_cut].MLE_params[1])
+        b_list.append(result_dict[D_cut].MLE_params[1])
+        c_list.append(result_dict[D_cut].MLE_params[2])
         a_err_list.append(result_dict[D_cut].MLE_error_autograd[0])
-        c_err_list.append(result_dict[D_cut].MLE_error_autograd[1])
+        b_err_list.append(result_dict[D_cut].MLE_error_autograd[1])
+        c_err_list.append(result_dict[D_cut].MLE_error_autograd[2])
         n_B_list.append(result_dict[D_cut].x_max_coords)
         
-    fig1, ax1 = plt.subplots(2, 1, figsize=(10,7))
+    fig1, ax1 = plt.subplots(3, 1, figsize=(10,7))
     plt.suptitle(f'{probe}', fontsize=16)
 
     fig2 = plt.figure(figsize=(8,6))
@@ -770,7 +785,15 @@ def plot_study_results(result_dict: Results, probe: str) -> None:
                         yerr=a_err_list[i], 
                         color=color_list[i]
         )
+
         ax1[1].errorbar(D_list[i], 
+                        b_list[i], 
+                        marker='o', 
+                        yerr=b_err_list[i], 
+                        color=color_list[i]
+        )
+
+        ax1[2].errorbar(D_list[i], 
                         c_list[i] + n_post_correction, 
                         marker='o', 
                         yerr=c_err_list[i], 
@@ -786,10 +809,13 @@ def plot_study_results(result_dict: Results, probe: str) -> None:
     ax1[0].set_ylabel(r'a [$(cm·T)^{-2}$]')
     ax1[0].set_xlabel(r'D [$V/nm$]')
 
-    ax1[1].set_ylabel(r'c [$cm^{-2}$]')
+    ax1[1].set_ylabel(r'b [$cm^{-2}/T$]')
     ax1[1].set_xlabel(r'D [$V/nm$]')
 
-    ax2.set_ylabel('B [T]')
+    ax1[2].set_ylabel(r'c [$cm^{-2}$]')
+    ax1[2].set_xlabel(r'D [$V/nm$]')
+
+    ax2.set_ylabel(r'B [$T$]')
     ax2.set_xlabel(r'n [$cm^{-2}$]')
     ax2.set_ylim(0, 4.1)
     ax2.minorticks_on()
@@ -801,9 +827,9 @@ def plot_study_results(result_dict: Results, probe: str) -> None:
     fig1.tight_layout()
     fig2.tight_layout()
 
-    fig1.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_coefficients.png', dpi=300)
-    fig2.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_n_B_plots.png', dpi=300)
-    plt.close('all')
+    fig1.savefig(f'/Volumes/STORE N GO/Plots/Model_2/{probe}/{probe}_coefficients.png', dpi=300)
+    fig2.savefig(f'/Volumes/STORE N GO/Plots/Model_2/{probe}/{probe}_n_B_plots.png', dpi=300)
+    #plt.close('all')
 
     #return f'n at B=0T without correction is {(np.mean(c_list) - n_correction)*1e-12}e12'
 
@@ -823,6 +849,7 @@ def generate_black_to_red(num_colors: int) -> list[tuple[float]]:
 
     return colorlist
 
+#%%
 data_class = load_multiple_datasets()
 #%%
 D_lims = (0.12, 0.25)
