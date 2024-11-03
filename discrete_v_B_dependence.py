@@ -38,6 +38,8 @@ def cauchy(
     return t.pdf(x, 1, loc=loc, scale=scale)
 import autograd.numpy as npa
 import os
+import pdb
+import scipy
 
 qc.config['user']['mainfolder'] = '/Volumes/STORE N GO/TD5'
 
@@ -45,7 +47,7 @@ database = 'Database_CD2_3'
 qc.config['core']['db_location'] = 'Volumes/STORE N GO/TD5/database/' + database + '.db'
 qc.initialise_database()
 qc.new_experiment("2023-10-10_tMoTe2.TD5-CD2", sample_name="TD5")
-
+#%%
 ######### Resistance quantum ##########
 h_Planck = 6.62607015e-34
 elementary_q = 1.602176634e-19
@@ -408,15 +410,19 @@ def lorentzian(
 def quadratic(x: float, a: float, c: float) -> float:
     return a*x**2 + c
 
+def affine(x: float, b: float, c: float) -> float:
+    return b*x + c
+
 def lorentzian_log_likelihood(
         params: NDArray[np.float64], 
         x: float, 
         y: float, 
         gamma: float, 
         scaling: float,
+        model_function: callable,
     ) -> float:
-    a, c = params * scaling
-    model = a * x**2 + c
+    a1, a2 = params * scaling
+    model = model_function(x, a1, a2)
     residuals = (y - model)**2
     log_likelihood = -npa.sum(npa.log(gamma / (npa.pi * (residuals + gamma**2))))
     return log_likelihood
@@ -426,9 +432,9 @@ def get_MLE_error(
         args:  tuple[NDArray[np.float64], NDArray[np.float64], float, float]
     ) -> NDArray[np.float64]:
     
-    x, y, gamma, scaling = args
+    x, y, gamma, scaling, model = args
     hessian_func = hessian(lorentzian_log_likelihood)
-    hessian_matrix = hessian_func(params, x, y, gamma, scaling)
+    hessian_matrix = hessian_func(params, x, y, gamma, scaling, model)
     cov_matrix = np.linalg.inv(hessian_matrix)
     errors = np.sqrt(np.diag(cov_matrix))
 
@@ -451,7 +457,26 @@ def find_scale(par: float) -> int:
         return i - 1
 
 class Results():
-    pass
+    pass    
+
+def get_p0(filling: str, Results_class: Results) -> NDArray[np.float64]:
+    if filling == 'one_third':
+        p0_B_fit = np.array([-1e10, Results_class.x_max_coords[0]])
+
+    elif filling == 'half' or filling == 'two_thirds':
+        p0_B_fit = np.array([-1e10, Results_class.x_max_coords[0]])
+
+    return p0_B_fit
+
+def get_model(filling: str) -> callable:
+
+    if filling == 'one_third':
+        model_function = affine
+
+    elif filling == 'half' or filling == 'two_thirds':
+        model_function = quadratic
+
+    return model_function
 
 def run_fitting_routine(
         Data_class: Data, 
@@ -472,7 +497,14 @@ def run_fitting_routine(
     Results_class.B_set_list = [0.2, 0.5, 0.75, 1, 1.5, 2, 2.25, 4]
 
     Results_class, data_list = filling_considerations(Results_class, data_list, filling)
-    Results_class.n_set_list_slice, Results_class.data_list_slice = shorten_array(Results_class.n_set_list, data_list, n_lims)
+    (Results_class.n_set_list_slice, 
+     Results_class.data_list_slice, 
+     Results_class.filter_flag,
+     Results_class.unfiltered_n_list,
+     Results_class.unfiltered_data_list) = shorten_array(Results_class.n_set_list, 
+                                                         data_list, 
+                                                         n_lims, 
+                                                         filling)
 
     x_max_coords = []
     x_max_coords_data = []
@@ -483,12 +515,34 @@ def run_fitting_routine(
     fit_second_std = []
     fit_gamma = []
     fit_R_sq_red = []
+    fit_succes = []
     
-    p0 = determine_init_params(probe, D_cut)
-
+    p0 = determine_init_params(probe, D_cut, filling)
+    #print(D_cut)
+    #i = 0
     for x_list, field_cut in zip(Results_class.n_set_list_slice, Results_class.data_list_slice):
+        #print(i)
+        #i += 1
         p0[1] = x_list[np.argmax(field_cut)]
-        popt, pcov = curve_fit(lorentzian, x_list, field_cut, p0=p0)
+        #dx = abs(np.diff(x_list)[0])
+
+        #bounds = [[0, p0[1] - 3*dx, -np.inf, -np.inf, -np.inf], 
+        #          [np.inf, p0[1] + 3*dx, np.inf, np.inf, np.inf]]
+        
+        try:
+            popt, pcov = curve_fit(lorentzian, x_list, field_cut, p0=p0)#, bounds=bounds)
+            fit_succes.append(1)
+        except:
+            popt, pcov = p0, np.zeros((len(p0), len(p0)))
+            fit_succes.append(0)
+
+        fit_pred = lorentzian(np.array(x_list), *popt)
+        R_val = R_bar_squared(np.array(field_cut), fit_pred, popt)
+
+        if R_val < 0.8:
+            popt, pcov = p0, np.zeros((len(p0), len(p0)))
+            fit_succes[-1] = 0
+
         a, x0, gamma, c, al = popt
         
         fit_params.append(popt)
@@ -501,8 +555,6 @@ def run_fitting_routine(
         x_max_coords.append(x0)
         y_max_values.append(lorentzian(x0, *popt))
 
-        fit_pred = lorentzian(np.array(x_list), *popt)
-        R_val = R_bar_squared(np.array(field_cut), fit_pred, popt)
         fit_R_sq_red.append(R_val)
 
     Results_class.x_max_coords = np.array(x_max_coords)
@@ -514,13 +566,15 @@ def run_fitting_routine(
     Results_class.fit_first_std = np.array(fit_first_std)
     Results_class.fit_second_std = np.array(fit_second_std)
     Results_class.fit_R_sq_red = np.array(fit_R_sq_red)
+    Results_class.fit_succes = np.array(fit_succes)
+    
+    model_function = get_model(filling)
+    p0_B_fit = get_p0(filling, Results_class)
 
-    p0_quadratic = np.array([-1e10, Results_class.x_max_coords[0]])
-
-    popt, pcov = curve_fit(quadratic, 
+    popt, pcov = curve_fit(model_function, 
                            Results_class.B_set_list, 
                            Results_class.x_max_coords, 
-                           p0=p0_quadratic, 
+                           p0=p0_B_fit, 
                            sigma=Results_class.fit_first_std,
                            absolute_sigma=True)
 
@@ -528,16 +582,37 @@ def run_fitting_routine(
     Results_class.quadratic_fit_params = popt
     Results_class.quadratic_fit_errors = np.sqrt(np.diag(pcov))
 
-    param_scaling = np.abs(p0_quadratic)
+    param_scaling = np.abs(p0_B_fit)
 
-    args = (np.array(Results_class.B_set_list), 
-            Results_class.x_max_coords, 
-            Results_class.fit_gamma,
-            param_scaling
+    ##### for removing failed fits #####
+    fit_succes = np.array(Results_class.fit_succes)
+    succesful_fits = np.where(fit_succes == 1)[0]
+
+    args = (np.array(Results_class.B_set_list)[succesful_fits], 
+            Results_class.x_max_coords[succesful_fits], 
+            Results_class.fit_gamma[succesful_fits],
+            param_scaling,
+            model_function
     )
+    ##### end #####
+
+    ##### for including failed fits with recontructed errors #####
+    # fit_succes = np.array(Results_class.fit_succes)
+    # failed_fits = np.where(fit_succes == 0)[0]
+
+    # Results_class.x_max_coords[failed_fits] = Results_class.x_max_coords_data[failed_fits]
+    # Results_class.fit_gamma[failed_fits] = Results_class.fit_gamma[failed_fits - 1]
+
+    # args = (np.array(Results_class.B_set_list), 
+    #         Results_class.x_max_coords, 
+    #         Results_class.fit_gamma,
+    #         param_scaling,
+    #         model_function
+    # )
+    ##### end #####
 
     MLE_result = minimize(lorentzian_log_likelihood, 
-                          p0_quadratic/param_scaling, 
+                          p0_B_fit/param_scaling, 
                           args=args,
                           tol=1e-12,
                           method='L-BFGS-B'
@@ -557,8 +632,14 @@ def isolate_peak(
     ) -> tuple[list[float], list[float]]:
     """This function isolates the peak in the data by finding the maximum value and then slicing the data around it."""
     
-    turn_left = n_list[np.argmin(data[:np.argmax(data)])]
-    turn_right = n_list[np.argmin(data[np.argmax(data):]) + np.argmax(data)]
+    turn_left_index = np.argmin(data[:np.argmax(data)]) - 3
+    turn_right_index = np.argmin(data[np.argmax(data):]) + np.argmax(data) + 3
+    if turn_left_index < 0:
+        turn_left_index = 0
+    if turn_right_index >= len(data):
+        turn_right_index = - 1
+    turn_left = n_list[turn_left_index]
+    turn_right = n_list[turn_right_index]
     new_data = []
     new_n = []
     for n, d in zip(n_list, data):
@@ -568,6 +649,56 @@ def isolate_peak(
     return new_data, new_n
 
 def shorten_array(
+        n_set_list: list[NDArray[np.float64]], 
+        data_list: list[NDArray[np.float64]], 
+        nlims: tuple[float],
+        filling: str='half',
+    ) -> tuple[list[NDArray[np.float64]], list[NDArray[np.float64]]]:
+    """This function shortens the data arrays in data_list using the arrays in n_set_list and the limits nlims."""
+    
+    new_data_list = []
+    new_n_set_list = []
+    filter_flag_list = []
+    unfiltered_n_list = []
+    unfiltered_data_list = []
+    for n_set, data in zip(n_set_list, data_list):
+        new_data = []
+        new_n = []
+        for n, d in zip(n_set, data):
+            if nlims[0] < n < nlims[1]:
+                new_data.append(d)
+                new_n.append(n)
+
+        filter_flag_list.append(0)
+        if filling == 'one_third':
+            
+            peaks, properties = scipy.signal.find_peaks(new_data, width=1, prominence=1e5)
+            hot_peak_loc = new_n[np.argmax(new_data)]
+            n_range_midpoint = np.mean(nlims)
+
+            if len(peaks) >= 2  and np.abs(hot_peak_loc - n_range_midpoint) < 0.25e12:
+                
+                filter_flag_list[-1] = 1
+                unfiltered_n_list.append(new_n)
+                unfiltered_data_list.append(new_data)
+                peak_1 = np.argmax(np.array(new_data)[peaks])
+                peak_2 = np.argmax(np.array(new_data)[peaks[peaks != peaks[peak_1]]])
+                if peak_2 >= peak_1:
+                    peak_2 += 1
+
+                index_peak_1 = peaks[peak_1]
+                index_peak_2 = peaks[peak_2]
+
+                select_range = slice(min(index_peak_1, index_peak_2) + 1, max(index_peak_1, index_peak_2))
+                new_n = np.concatenate((new_n[:select_range.start], new_n[select_range.stop:]))
+                new_data = np.concatenate((new_data[:select_range.start], new_data[select_range.stop:]))
+
+        new_data, new_n = isolate_peak(new_n, new_data)
+        new_data_list.append(new_data)
+        new_n_set_list.append(new_n)
+    return new_n_set_list, new_data_list, filter_flag_list, unfiltered_n_list, unfiltered_data_list
+
+def shorten_array_without_peak_isolation(
         n_set_list: list[NDArray[np.float64]], 
         data_list: list[NDArray[np.float64]], 
         nlims: tuple[float]
@@ -583,33 +714,52 @@ def shorten_array(
             if nlims[0] < n < nlims[1]:
                 new_data.append(d)
                 new_n.append(n)
-        new_data, new_n = isolate_peak(new_n, new_data)
         new_data_list.append(new_data)
         new_n_set_list.append(new_n)
     return new_n_set_list, new_data_list
 
-def determine_init_params(probe: str, D_cut: Union[int,float]) -> list[float]:
+def determine_init_params(
+        probe: str, 
+        D_cut: Union[int,float],
+        filling: str,
+) -> list[float]:
 
-    if probe == '11_06':
-        if D_cut > 0.161:
-            p0 = [1e15, 0, 5e10, 1e3, 0]
-        elif D_cut <= 0.161:
-            p0 = [1e16, 0, 5e10, 1e5, 0]
-    elif probe == '19_20':
-        if D_cut > 0.181:
-            p0 = [1e15, 0, 5e10, 1e3, 0]
-        elif D_cut <= 0.181:
-            p0 = [1e16, 0, 5e10, 1e5, 0]
-    elif probe == '20_24':
-        if D_cut > 0.171:
-            p0 = [1e15, 0, 5e10, 1e3, 0]
-        elif D_cut <= 0.171:
-            p0 = [1e16, 0, 5e10, 1e5, 0]
-    elif probe == '06_05':
-        if D_cut > 0.171:
-            p0 = [1e15, 0, 5e10, 1e6, 0]
-        elif D_cut <= 0.171:
-            p0 = [1e16, 0, 5e10, 1e6, 0]
+    if filling == 'half' or filling == 'two_thirds':
+        if probe == '11_06':
+            if D_cut > 0.161:
+                p0 = [1e15, 0, 5e10, 1e3, 0]
+            elif D_cut <= 0.161:
+                p0 = [1e16, 0, 5e10, 1e5, 0]
+        elif probe == '19_20':
+            if D_cut > 0.181:
+                p0 = [1e15, 0, 5e10, 1e3, 0]
+            elif D_cut <= 0.181:
+                p0 = [1e16, 0, 5e10, 1e5, 0]
+        elif probe == '20_24':
+            if D_cut > 0.171:
+                p0 = [1e15, 0, 5e10, 1e3, 0]
+            elif D_cut <= 0.171:
+                p0 = [1e16, 0, 5e10, 1e5, 0]
+        elif probe == '06_05':
+            if D_cut > 0.171:
+                p0 = [1e15, 0, 5e10, 1e6, 0]
+            elif D_cut <= 0.171:
+                p0 = [1e16, 0, 5e10, 1e6, 0]
+
+    elif filling == 'one_third':
+        if probe == '11_06':
+            if D_cut > 0.156:
+                p0 = [1e17, 0, 5e10, -1e5, 0]
+            elif D_cut > 0.151 and D_cut <= 0.156:
+                p0 = [1e18, -3e10, 3e10, -1e5, 0]
+            elif D_cut <= 0.151:
+                p0 = [1e17, 0, 5e10, 1e5, 0]
+        elif probe == '19_20':
+            p0 = [1e17, 0, 5e10, 1e5, 0]
+        elif probe == '20_24':
+            p0 = [1e17, 0, 5e10, 1e5, 0]
+        elif probe == '06_05':
+            p0 = [1e17, 0, 5e10, 1e5, 0]
     
     return p0
 
@@ -618,10 +768,17 @@ def filling_considerations(
         data_list: list[NDArray[np.float64]], 
         filling: str
     ) -> tuple[Results, list[NDArray[np.float64]]]:
+
     if filling == 'two_thirds':
         Results_class.n_set_list = Results_class.n_set_list[:-2]
         data_list = data_list[:-2]
         Results_class.B_set_list = Results_class.B_set_list[:-2]
+
+    if filling == 'one_third':
+        Results_class.n_set_list = Results_class.n_set_list[3:]
+        data_list = data_list[3:]
+        Results_class.B_set_list = Results_class.B_set_list[3:]
+
     return Results_class, data_list
 
 def set_D_correction(probe: str) -> float:
@@ -636,6 +793,24 @@ def set_D_correction(probe: str) -> float:
         D_correction = -0.01
 
     return D_correction
+
+def check_scale(scale: int) -> int:
+    if scale > 0:
+        return scale
+    else:
+        return 0
+    
+def get_parameter_names(filling: str) -> tuple[str]:
+
+    if filling == 'one_third':
+        first_par_name = 'b'
+        second_par_name = 'c'
+
+    if filling == 'half' or filling == 'two_thirds':
+        first_par_name = 'a'
+        second_par_name = 'c'
+    
+    return first_par_name, second_par_name
 
 #n_adjustment = 3.39e11
 
@@ -658,23 +833,85 @@ def run_study(
 
     return result_dict
 
-def inspect_study_quality(result_dict: dict[float, Results], probe: str) -> None:
+def inspect_study_quality(result_dict: dict[float, Results], 
+                          probe: str, 
+                          filling: str='half', 
+                          save_figs: bool=False) -> None:
 
     n_post_correction = get_n_correction(probe) - n_correction
+    model_function = get_model(filling)
 
     for D_cut in result_dict.keys():
 
+        fit_succes = np.array(result_dict[D_cut].fit_succes)
+        succesful_fits = np.where(fit_succes == 1)[0]
+        failed_fits = np.where(fit_succes == 0)[0]
+
+        filter_flag = np.array(result_dict[D_cut].filter_flag)
+        filtered_fits = np.where(filter_flag == 1)[0]
+
         fig1, ax1 = plt.subplots(2, 4, figsize=(12,8))
         plt.suptitle(f'D_cut/$e_{0}$ = {D_cut:.3f} [V/nm], {probe}, mean ' + r'$\bar{R}^2$ = ' 
-                            + f'{result_dict[D_cut].fit_R_sq_red.mean():.3f}', fontsize=16)
+                            + f'{np.array(result_dict[D_cut].fit_R_sq_red)[succesful_fits].mean():.3f}', 
+                            fontsize=16)
 
-        for x_list, y_list, fit_param, fit_error, ax, B_field, R_val in zip(result_dict[D_cut].n_set_list_slice, result_dict[D_cut].data_list_slice, result_dict[D_cut].fit_params, result_dict[D_cut].fit_errors, ax1.flatten(), result_dict[D_cut].B_set_list, result_dict[D_cut].fit_R_sq_red):
+        i, j = 0, 0
+        if filling == 'one_third':
+            j = 3
+
+        for plot_index in range(len(result_dict[D_cut].n_set_list_slice)):
+            
+            x_list = np.array(result_dict[D_cut].n_set_list_slice[plot_index])
+            y_list = np.array(result_dict[D_cut].data_list_slice[plot_index])
+            fit_param = result_dict[D_cut].fit_params[plot_index]
+            fit_error = result_dict[D_cut].fit_errors[plot_index]
+            ax = ax1.flatten()[plot_index+j]
+            B_field = result_dict[D_cut].B_set_list[plot_index]
+            R_val = result_dict[D_cut].fit_R_sq_red[plot_index]
+            filter_flag = result_dict[D_cut].filter_flag[plot_index]
+            fit_succes = result_dict[D_cut].fit_succes[plot_index]
+            if filter_flag == 1:
+                fig_filter = plt.figure()
+                ax_filter = fig_filter.add_subplot(111)
+
+                x_unfiltered = np.array(result_dict[D_cut].unfiltered_n_list[i])
+                y_unfiltered = np.array(result_dict[D_cut].unfiltered_data_list[i])
+                ax_filter.plot(x_list + n_post_correction, 
+                               y_list/R_Q, 
+                               color='blue', 
+                               label='filtered data')
+                ax_filter.plot(x_unfiltered + n_post_correction,
+                               y_unfiltered/R_Q, 
+                               '.', 
+                               color='black', 
+                               label='unfiltered data')
+                
+                ax_filter.legend()
+                ax_filter.set_title(f'B={B_field}T, ' + r'$\bar{R}^2$ = ' + f'{R_val:.3f}' + ', filtered')
+                ax_filter.set_xlabel(r'n [$cm^{-2}$]')
+                ax_filter.set_ylabel(r'R$_{xx}$ [h/e$^2$]')
+                i += 1
+
+                if save_figs == True:
+
+                    if filling == 'half':
+                        fig_filter.savefig(f'/Volumes/STORE N GO/Plots/{probe}/D_cuts/{D_cut:.3f}_{probe}_{B_field}_unfiltered.png', dpi=300)
+                
+                    if filling == 'one_third':
+                        fig_filter.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/D_cuts/{D_cut:.3f}_{probe}_{B_field}_unfiltered.png', dpi=300)
+
+                    if filling == 'two_thirds':
+                        fig_filter.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/D_cuts/{D_cut:.3f}_{probe}_{B_field}_unfiltered.png', dpi=300)
+
             ns = np.linspace(x_list[0], x_list[-1], 301)
-            ax.plot(np.array(x_list) + n_post_correction, 
-                    np.array(y_list)/R_Q, 
+            data_label = 'data'
+            if filter_flag == 1:
+                data_label = 'data filtered'
+            ax.plot(x_list + n_post_correction, 
+                    y_list/R_Q, 
                     'o', 
                     color='black', 
-                    label='data'
+                    label=data_label
             )
             ax.plot(ns + n_post_correction, 
                     lorentzian(ns, *fit_param)/R_Q, 
@@ -682,32 +919,83 @@ def inspect_study_quality(result_dict: dict[float, Results], probe: str) -> None
                     label='fit'
             )
             ax.legend()
-            ax.set_xlabel(r'n [$cm^{-2}$]')
-            ax.set_ylabel(r'R$_{xx}$ [h/e$^2$]')
             ax.title.set_text(f'B={B_field}T, ' + r'$\bar{R}^2$ = ' 
                             + f'{R_val:.3f}')
+            if fit_succes == 0:
 
+                data_mid = x_list[np.argmax(y_list)] + n_post_correction
+                substitute_gamma = result_dict[D_cut].fit_gamma[plot_index-1]
+
+                ax.title.set_text(f'B={B_field}T, ' + r'fit failed')
+                ax.vlines(data_mid, 
+                          0,
+                          np.max(y_list)/R_Q, 
+                          color='red')
+                ax.hlines(np.max(y_list)/R_Q/2, 
+                          data_mid - substitute_gamma,
+                          data_mid + substitute_gamma, 
+                          color='red')
+
+        [ax.set_xlabel(r'n [$cm^{-2}$]') for ax in ax1.flat]
+        [ax.set_ylabel(r'R$_{xx}$ [h/e$^2$]') for ax in ax1.flat]
         fig1.tight_layout()
-        fig1.savefig(f'/Volumes/STORE N GO/Plots/{probe}/D_cuts/{D_cut:.3f}_{probe}_peaks.png', dpi=300)
+        
+        if save_figs == True:
+
+            if filling == 'half':
+                fig1.savefig(f'/Volumes/STORE N GO/Plots/{probe}/D_cuts/{D_cut:.3f}_{probe}_peaks.png', dpi=300)
+        
+            if filling == 'one_third':
+                fig1.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/D_cuts/{D_cut:.3f}_{probe}_peaks.png', dpi=300)
+
+            if filling == 'two_thirds':
+                fig1.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/D_cuts/{D_cut:.3f}_{probe}_peaks.png', dpi=300)
 
         fig2 = plt.figure()
         ax2 = fig2.add_subplot(111)
-        ax2.plot(result_dict[D_cut].B_set_list, 
-                 result_dict[D_cut].x_max_coords_data + n_post_correction, 
+
+        B_array = np.array(result_dict[D_cut].B_set_list)
+        data_array = np.array(result_dict[D_cut].x_max_coords_data)
+        fit_array = np.array(result_dict[D_cut].x_max_coords)
+        gamma_array = np.array(result_dict[D_cut].fit_gamma)
+
+        #Results_class.x_max_coords[failed_fits] = Results_class.x_max_coords_data[failed_fits]
+        #Results_class.fit_gamma[failed_fits] = Results_class.fit_gamma[failed_fits - 1]
+
+        ax2.plot(B_array[succesful_fits], 
+                 data_array[succesful_fits] + n_post_correction, 
                  '*', 
                  label='data', 
                  color='black'
         )
-        ax2.errorbar(result_dict[D_cut].B_set_list, 
-                     result_dict[D_cut].x_max_coords + n_post_correction, 
-                     yerr=result_dict[D_cut].fit_gamma, 
+
+        if len(failed_fits) > 0:
+            ax2.plot(B_array[failed_fits], 
+                     data_array[failed_fits] + n_post_correction, 
+                     '*', 
+                     label='data left out', 
+                     color='grey'
+        )
+
+        ax2.errorbar(B_array[succesful_fits], 
+                     fit_array[succesful_fits] + n_post_correction, 
+                     yerr=gamma_array[succesful_fits], 
                      fmt='o', 
                      label=r'peak fit, FWHM', 
                      color='steelblue'
         )
+
+        ax2.plot(B_array[filtered_fits], 
+                 fit_array[filtered_fits] + n_post_correction, 
+                 's', 
+                 markersize=8,
+                 label='filtered', 
+                 color='orange'
+        )
+
         xs = np.linspace(result_dict[D_cut].B_set_list[0], result_dict[D_cut].B_set_list[-1], 301)
         ax2.plot(xs, 
-                 quadratic(xs, *result_dict[D_cut].MLE_params) + n_post_correction, 
+                 model_function(xs, *result_dict[D_cut].MLE_params) + n_post_correction, 
                  label='MLE fit', 
                  color='crimson'
         )
@@ -716,36 +1004,57 @@ def inspect_study_quality(result_dict: dict[float, Results], probe: str) -> None
         ax2.minorticks_on()
         ax2.legend()
 
-        a, c = result_dict[D_cut].MLE_params
+        a1, a2 = result_dict[D_cut].MLE_params
         #a_scale, c_scale = find_scale(a_SI_scaling(a)), find_scale(c)
-        a_scale, c_scale = find_scale(a), find_scale(c)
-        a_err, c_err = result_dict[D_cut].MLE_error_autograd
+        a1_scale, a2_scale = find_scale(a1), find_scale(a2)
+        a1_err, a2_err = result_dict[D_cut].MLE_error_autograd
         #a_err, c_err = a_SI_scaling(a_err)/(10**a_scale), c_err/(10**c_scale)
-        a_err, c_err = a_err/(10**a_scale), c_err/(10**c_scale)
-        a_err_scale, c_err_scale = -find_scale(a_err), -find_scale(c_err)
+        a1_err, a2_err = a1_err/(10**a1_scale), a2_err/(10**a2_scale)
+        a1_err_scale, a2_err_scale = -find_scale(a1_err), -find_scale(a2_err)
+
+        a1_err_scale = check_scale(a1_err_scale)
+        a2_err_scale = check_scale(a2_err_scale)
+        first_par_name, second_par_name = get_parameter_names(filling)
 
         ax2.set_title(f'{probe}, D/$\epsilon_{0}$ = {D_cut:.3f}, ' + 
                       #f'a={(a_SI_scaling(a)*10**(-a_scale)):.{a_err_scale}f}e{a_scale}$\pm$' +
-                      f'a={(a*10**(-a_scale)):.{a_err_scale}f}e{a_scale}$\pm$' +
-                      f'{(a_err):.{a_err_scale}f}e{a_scale}, ' +
-                      f'c={(c*10**(-c_scale)):.{c_err_scale}f}e{c_scale}$\pm$' +
-                      f'{(c_err):.{c_err_scale}f}e{c_scale}', fontsize=12)
+                      f'{first_par_name}={(a1*10**(-a1_scale)):.{a1_err_scale}f}e{a1_scale}$\pm$' +
+                      f'{(a1_err):.{a1_err_scale}f}e{a1_scale}, ' +
+                      f'{second_par_name}={(a2*10**(-a2_scale)):.{a2_err_scale}f}e{a2_scale}$\pm$' +
+                      f'{(a2_err):.{a2_err_scale}f}e{a2_scale}', fontsize=12)
         
-        fig2.savefig(f'/Volumes/STORE N GO/Plots/{probe}/D_cuts/{D_cut:.3f}_{probe}_peak_position_B.png', dpi=300)
-    plt.close('all')
+        if save_figs == True:
 
-def plot_study_results(result_dict: Results, probe: str) -> None:
+            if filling == 'half':
+                fig2.savefig(f'/Volumes/STORE N GO/Plots/{probe}/D_cuts/{D_cut:.3f}_{probe}_peak_position_B.png', dpi=300)
+        
+            if filling == 'one_third':
+                fig2.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/D_cuts/{D_cut:.3f}_{probe}_peak_position_B.png', dpi=300)
+            
+            if filling == 'two_thirds':
+                fig2.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/D_cuts/{D_cut:.3f}_{probe}_peak_position_B.png', dpi=300)
+    
+    #plt.close('all')
+
+def plot_study_results(result_dict: Results, 
+                       probe: str, 
+                       filling: str,
+                       save_figs: bool=False) -> None:
 
     n_post_correction = get_n_correction(probe) - n_correction
+    model_function = get_model(filling)
 
-    D_list, a_list, c_list, a_err_list, c_err_list, n_B_list = [], [], [], [], [], []
+    D_list, a1_list, a2_list, a1_err_list, a2_err_list, n_B_list, filter_list = [], [], [], [], [], [], []
     for D_cut in result_dict.keys():
         D_list.append(D_cut)
-        a_list.append(result_dict[D_cut].MLE_params[0])
-        c_list.append(result_dict[D_cut].MLE_params[1])
-        a_err_list.append(result_dict[D_cut].MLE_error_autograd[0])
-        c_err_list.append(result_dict[D_cut].MLE_error_autograd[1])
+        a1_list.append(result_dict[D_cut].MLE_params[0])
+        a2_list.append(result_dict[D_cut].MLE_params[1])
+        a1_err_list.append(result_dict[D_cut].MLE_error_autograd[0])
+        a2_err_list.append(result_dict[D_cut].MLE_error_autograd[1])
         n_B_list.append(result_dict[D_cut].x_max_coords)
+
+        filter_flag = np.array(result_dict[D_cut].filter_flag)
+        filter_list.append(np.sum(filter_flag))
         
     fig1, ax1 = plt.subplots(2, 1, figsize=(10,7))
     plt.suptitle(f'{probe}', fontsize=16)
@@ -762,31 +1071,37 @@ def plot_study_results(result_dict: Results, probe: str) -> None:
 
     for i in range(len(result_dict.keys())):
         
+        marker = 'o'
+        if filter_list[i] > 0:
+            marker = 's'
+
         ax1[0].errorbar(D_list[i], 
                         #a_SI_scaling(a_list[i]), 
-                        a_list[i],
-                        marker='o', 
+                        a1_list[i],
+                        marker=marker, 
                         #yerr=a_SI_scaling(a_err_list[i]), 
-                        yerr=a_err_list[i], 
+                        yerr=a1_err_list[i], 
                         color=color_list[i]
         )
         ax1[1].errorbar(D_list[i], 
-                        c_list[i] + n_post_correction, 
-                        marker='o', 
-                        yerr=c_err_list[i], 
+                        a2_list[i] + n_post_correction, 
+                        marker=marker, 
+                        yerr=a2_err_list[i], 
                         color=color_list[i]
         )
 
-        line2, = ax2.plot(quadratic(B_list_gen, *result_dict[D_list[i]].MLE_params) + n_post_correction, 
+        line2, = ax2.plot(model_function(B_list_gen, *result_dict[D_list[i]].MLE_params) + n_post_correction, 
                  B_list_gen, 
                  color=color_list[i]
         )
         line_handles.append(line2)
     
-    ax1[0].set_ylabel(r'a [$(cm·T)^{-2}$]')
+    first_par_name, second_par_name = get_parameter_names(filling)
+
+    ax1[0].set_ylabel(first_par_name + r' [$(cm·T)^{-2}$]')
     ax1[0].set_xlabel(r'D [$V/nm$]')
 
-    ax1[1].set_ylabel(r'c [$cm^{-2}$]')
+    ax1[1].set_ylabel(second_par_name + r' [$cm^{-2}$]')
     ax1[1].set_xlabel(r'D [$V/nm$]')
 
     ax2.set_ylabel('B [T]')
@@ -801,9 +1116,22 @@ def plot_study_results(result_dict: Results, probe: str) -> None:
     fig1.tight_layout()
     fig2.tight_layout()
 
-    fig1.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_coefficients.png', dpi=300)
-    fig2.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_n_B_plots.png', dpi=300)
-    plt.close('all')
+    if save_figs == True:
+
+        if filling == 'half':
+            fig1.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_coefficients.png', dpi=300)
+            fig2.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_n_B_plots.png', dpi=300)
+
+        if filling == 'one_third':
+            fig1.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/{probe}_coefficients.png', dpi=300)
+            fig2.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/{probe}_n_B_plots.png', dpi=300)
+
+        if filling == 'two_thirds':
+            fig1.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/{probe}_coefficients.png', dpi=300)
+            fig2.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/{probe}_n_B_plots.png', dpi=300)
+
+
+    #plt.close('all')
 
     #return f'n at B=0T without correction is {(np.mean(c_list) - n_correction)*1e-12}e12'
 
@@ -822,33 +1150,103 @@ def generate_black_to_red(num_colors: int) -> list[tuple[float]]:
     colorlist = [(1 - i / (num_colors - 1)) * black + (i / (num_colors - 1)) * red for i in range(num_colors)]
 
     return colorlist
-
-data_class = load_multiple_datasets()
 #%%
-D_lims = (0.12, 0.25)
+data_class = load_multiple_datasets()
+#%% 0.11
+D_lims = (0.11, 0.174)
 probe = '11_06'
+n_lims = (-2.1e12, -1.43e12)
+filling = 'one_third'
+save_figs = True
 
-results = run_study(data_class, D_lims, probe)
-inspect_study_quality(results, probe)
-plot_study_results(results, probe)
-# %%
-D_lims = (0.115, 0.245)
+results = run_study(data_class, D_lims, probe, n_lims=n_lims, filling=filling)
+inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
+plot_study_results(results, probe, filling=filling, save_figs=save_figs)
+# %% 0.13
+D_lims = (0.11, 0.174)#(0.13, 0.155)
 probe = '19_20'
+n_lims = (-2.25e12, -1.43e12)
+filling = 'one_third'
+save_figs = True
 
-results = run_study(data_class, D_lims, probe)
-inspect_study_quality(results, probe)
-plot_study_results(results, probe)
+results = run_study(data_class, D_lims, probe, n_lims=n_lims, filling=filling)
+inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
+plot_study_results(results, probe, filling=filling, save_figs=save_figs)
 # %%
-D_lims = (0.11, 0.24)
+D_lims = (0.12, 0.174)
 probe = '20_24'
+n_lims = (-2.1e12, -1.43e12)
+filling = 'one_third'
+save_figs = True
 
-results = run_study(data_class, D_lims, probe)
-inspect_study_quality(results, probe)
-plot_study_results(results, probe)
+results = run_study(data_class, D_lims, probe, n_lims=n_lims, filling=filling)
+inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
+plot_study_results(results, probe, filling=filling, save_figs=save_figs)
+
 # %%
-D_lims = (0.115, 0.245)
+D_lims = (0.11, 0.174)
 probe = '06_05'
+n_lims = (-2.1e12, -1.43e12)
+filling = 'one_third'
+save_figs = True
 
-results = run_study(data_class, D_lims, probe)
-inspect_study_quality(results, probe)
-plot_study_results(results, probe)
+results = run_study(data_class, D_lims, probe, n_lims=n_lims, filling=filling)
+inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
+plot_study_results(results, probe, filling=filling, save_figs=save_figs)
+#%% inspection of raw data
+probe = '19_20'
+D_cut = 0.115
+B_index = 4
+n_lims = (-2.3e12, -1.43e12)
+D_correction = set_D_correction(probe)
+Data_class = prepare_data_set(data_class, D_cut=D_cut + D_correction, probe=probe)
+
+Results_class_1 = Results()
+
+Results_class_1.n_set_list = [Data_class.nn_new, Data_class.nn_new_05, Data_class.nn_new_1, Data_class.nn_new, Data_class.nn_new_1, Data_class.nn_new, Data_class.nn_new_1, Data_class.nn_new]
+data_list = [Data_class.z_values_200, Data_class.z_values_05, Data_class.z_values_75, Data_class.z_values_1, Data_class.z_values_150, Data_class.z_values_2, Data_class.z_values_225, Data_class.z_values_4]
+Results_class_1.B_set_list = [0.2, 0.5, 0.75, 1, 1.5, 2, 2.25, 4]
+
+Results_class_1, data_list = filling_considerations(Results_class_1, data_list, filling)
+(Results_class_1.n_set_list_slice, 
+Results_class_1.data_list_slice,
+Results_class_1.filter_flag,
+Results_class_1.unfiltered_n_list,
+Results_class_1.unfiltered_data_list) = shorten_array(Results_class_1.n_set_list, 
+                                                      data_list, 
+                                                      n_lims, 
+                                                      filling)
+
+p0 = [1e18, -3e10, 3e10, -1e5, 0]
+
+filter_array = np.array(Results_class_1.filter_flag)
+filter_locs = np.where(filter_array == 1)[0]
+for i in range(len(Results_class_1.n_set_list_slice)):
+    plt.figure()
+    plt.plot(np.array(Results_class_1.n_set_list_slice[i]) + get_n_correction(probe), 
+             np.array(Results_class_1.data_list_slice[i])/R_Q, 
+             label='filtered data')
+    p0[1] = Results_class_1.n_set_list_slice[i][np.argmax(Results_class_1.data_list_slice[i])]-3e10
+    plt.plot(np.array(Results_class_1.n_set_list_slice[i]) + get_n_correction(probe),
+             lorentzian(np.array(Results_class_1.n_set_list_slice[i]), *p0)/R_Q)
+# if len(filter_locs) > 0:
+#     for i in range(len(filter_locs)):
+#         plot_index = filter_locs[i]
+#         print(plot_index)
+#         plt.figure()
+#         plt.plot(np.array(Results_class_1.n_set_list_slice[plot_index]) + get_n_correction(probe), Results_class_1.data_list_slice[plot_index], label='filtered data')
+#         plt.plot(np.array(Results_class_1.unfiltered_n_list[i]) + get_n_correction(probe), Results_class_1.unfiltered_data_list[i], '.', label='unfiltered data')
+#         plt.legend()
+# %% run cell above first
+i = 3
+
+x_list = np.array(Results_class_1.n_set_list_slice[i])
+field_cut = np.array(Results_class_1.data_list_slice[i])
+
+p0 = [8e17, 0, 3e10, -1e5, 0]
+p0[1] = x_list[np.argmax(field_cut)] - 3e10
+popt, pcov = curve_fit(lorentzian, x_list, field_cut, p0=p0, method='trf')
+plt.plot(x_list, field_cut/R_Q)
+plt.plot(x_list + get_n_correction(probe),
+         lorentzian(x_list, *popt)/R_Q)
+# %%
