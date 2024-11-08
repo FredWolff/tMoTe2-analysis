@@ -1085,7 +1085,7 @@ def plot_study_results(result_dict: Results,
     ax2 = fig2.add_subplot(111)
     plt.suptitle(f'{probe}, parabolas', fontsize=16)
 
-    fig3, ax3 = plt.subplots(2, 1, figsize=(10,7))
+    fig3, ax3 = plt.subplots(3, 1, figsize=(10, 10))
     plt.suptitle(f'{probe}, peak width', fontsize=16)
 
     B_list_gen = np.linspace(0, result_dict[D_cut].B_set_list[-1])
@@ -1122,7 +1122,7 @@ def plot_study_results(result_dict: Results,
         )
         line_handles.append(line2)
 
-        ax3[1].errorbar(D_list[i], 
+        ax3[2].errorbar(D_list[i], 
                         gamma_mean_D[i], 
                         marker=marker, 
                         yerr=gamma_std_D[i], 
@@ -1138,18 +1138,32 @@ def plot_study_results(result_dict: Results,
 
         ax3[0].plot(result_dict[D_cut].B_set_list, 
                     2*np.array(gamma_list)[D_index_choices[j]],
-                    #marker=marker, 
                     color=color_list[j],
                     label=f'D/$\epsilon_{0}$ = {D_list[D_index_choices[j]]:.3f}'
         )
 
+        ax3[1].plot(result_dict[D_cut].B_set_list, 
+                    n_B_list[j] + 2*np.array(gamma_list)[D_index_choices[j]],
+                    color=color_list[j],
+                    label=f'D/$\epsilon_{0}$ = {D_list[D_index_choices[j]]:.3f}'
+        )
 
     ax3[0].errorbar(result_dict[D_cut].B_set_list, 
                     gamma_mean_B,
-                    #marker=marker, 
                     yerr=gamma_std_B, 
                     color='green',
                     label='avg over D'
+    )
+
+    (n_plus_FWHM_mean_B, 
+     n_plus_FWHM_std_B) = get_mean_and_std(n_B_list + 2*np.array(gamma_list), 
+                                           axis=0)
+
+    ax3[1].errorbar(result_dict[D_cut].B_set_list, 
+                    n_plus_FWHM_mean_B,
+                    yerr=n_plus_FWHM_std_B, 
+                    color='green',
+                    label='avg over B'
     )
 
     first_par_name, second_par_name = get_parameter_names(filling)
@@ -1169,12 +1183,16 @@ def plot_study_results(result_dict: Results,
                        f'D/$\epsilon_{0}$ = {D_list[-1]:.3f}']
     )
 
-    ax3[0].set_ylabel(r'$FWHM avg over D [$cm^{-2}$]')
+    ax3[0].set_ylabel(r'$FWHM [$cm^{-2}$]')
     ax3[0].set_xlabel(r'B [$T$]')
-
-    ax3[1].set_ylabel(r'$FWHM avg over B [$cm^{-2}$]')
-    ax3[1].set_xlabel(r'D [$V/nm$]')
     ax3[0].legend()
+
+    ax3[1].set_ylabel(r'$x_0 + 2 \cdot \gamma$ [$cm^{-2}$]')
+    ax3[1].set_xlabel(r'B [$T$]')
+    ax3[1].legend()
+
+    ax3[2].set_ylabel(r'$FWHM avg over B [$cm^{-2}$]')
+    ax3[2].set_xlabel(r'D [$V/nm$]')
 
     fig1.tight_layout()
     fig2.tight_layout()
@@ -1185,14 +1203,17 @@ def plot_study_results(result_dict: Results,
         if filling == 'half':
             fig1.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_coefficients.png', dpi=300)
             fig2.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_n_B_plots.png', dpi=300)
+            fig3.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_peak_width.png', dpi=300)
 
         if filling == 'one_third':
             fig1.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/{probe}_coefficients.png', dpi=300)
             fig2.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/{probe}_n_B_plots.png', dpi=300)
+            fig3.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/{probe}_peak_width.png', dpi=300)
 
         if filling == 'two_thirds':
             fig1.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/{probe}_coefficients.png', dpi=300)
             fig2.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/{probe}_n_B_plots.png', dpi=300)
+            fig3.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/{probe}_peak_width.png', dpi=300)
 
 
     #plt.close('all')
@@ -1217,11 +1238,11 @@ def generate_black_to_red(num_colors: int) -> list[tuple[float]]:
 #%%
 data_class = load_multiple_datasets()
 #%% 0.11
-D_lims = (0.11, 0.174)
+D_lims = (0.12, 0.25)
 probe = '11_06'
-n_lims = (-2.1e12, -1.43e12)
-#n_lims = (-3.1e12, -2.05e12)
-filling = 'one_third'
+# n_lims = (-2.1e12, -1.43e12)
+n_lims = (-3.1e12, -2.05e12)
+filling = 'half'
 save_figs = False
 
 results = run_study(data_class, D_lims, probe, n_lims=n_lims, filling=filling)
