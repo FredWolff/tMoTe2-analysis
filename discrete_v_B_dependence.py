@@ -19,6 +19,12 @@
 # 20_24: D_correction = -0.015, D_lims = (), n_23 =
 # 06_05: D_correction = -0.01, D_lims = (), n_23 =
 
+### v=1/3 ###
+# 11_06: D_correction = -0.015, D_lims = (0.11, 0.174, 0.005), n_lims = (-2.1e12, -1.43e12)
+# 19_20: D_correction = -0.01, D_lims = (0.11, 0.174, 0.005), n_lims = (-2.25e12, -1.43e12)
+# 20_24: D_correction = -0.015, D_lims = (0.12, 0.174), n_lims = (-2.1e12, -1.43e12)
+# 06_05: D_correction = -0.01, D_lims = (0.11, 0.174), n_lims = (-2.1e12, -1.43e12)
+
 #%%
 from typing import Union, Optional
 import qcodes as qc
@@ -984,14 +990,14 @@ def inspect_study_quality(result_dict: dict[float, Results],
                      label=r'peak fit, FWHM', 
                      color='steelblue'
         )
-
-        ax2.plot(B_array[filtered_fits], 
-                 fit_array[filtered_fits] + n_post_correction, 
-                 's', 
-                 markersize=8,
-                 label='filtered', 
-                 color='orange'
-        )
+        if len(filtered_fits) > 0:
+            ax2.plot(B_array[filtered_fits], 
+                    fit_array[filtered_fits] + n_post_correction, 
+                    's', 
+                    markersize=8,
+                    label='filtered', 
+                    color='orange'
+            )
 
         xs = np.linspace(result_dict[D_cut].B_set_list[0], result_dict[D_cut].B_set_list[-1], 301)
         ax2.plot(xs, 
@@ -1044,7 +1050,15 @@ def plot_study_results(result_dict: Results,
     n_post_correction = get_n_correction(probe) - n_correction
     model_function = get_model(filling)
 
-    D_list, a1_list, a2_list, a1_err_list, a2_err_list, n_B_list, filter_list = [], [], [], [], [], [], []
+    (D_list, 
+     a1_list, 
+     a2_list, 
+     a1_err_list, 
+     a2_err_list, 
+     n_B_list, 
+     filter_list, 
+     gamma_list) = [], [], [], [], [], [], [], []
+    
     for D_cut in result_dict.keys():
         D_list.append(D_cut)
         a1_list.append(result_dict[D_cut].MLE_params[0])
@@ -1052,16 +1066,27 @@ def plot_study_results(result_dict: Results,
         a1_err_list.append(result_dict[D_cut].MLE_error_autograd[0])
         a2_err_list.append(result_dict[D_cut].MLE_error_autograd[1])
         n_B_list.append(result_dict[D_cut].x_max_coords)
+        gamma_list.append(result_dict[D_cut].fit_gamma)
 
         filter_flag = np.array(result_dict[D_cut].filter_flag)
         filter_list.append(np.sum(filter_flag))
         
+    def get_mean_and_std(data_list: NDArray[NDArray[float]], 
+                         axis: int=1) -> tuple[NDArray[float]]:
+        return np.mean(data_list, axis=axis), np.std(data_list, axis=axis)
+
+    gamma_mean_B, gamma_std_B = get_mean_and_std(2*np.array(gamma_list), axis=0)
+    gamma_mean_D, gamma_std_D = get_mean_and_std(2*np.array(gamma_list), axis=1)
+
     fig1, ax1 = plt.subplots(2, 1, figsize=(10,7))
-    plt.suptitle(f'{probe}', fontsize=16)
+    plt.suptitle(f'{probe}, fit parameters', fontsize=16)
 
     fig2 = plt.figure(figsize=(8,6))
     ax2 = fig2.add_subplot(111)
-    plt.suptitle(f'{probe}', fontsize=16)
+    plt.suptitle(f'{probe}, parabolas', fontsize=16)
+
+    fig3, ax3 = plt.subplots(2, 1, figsize=(10,7))
+    plt.suptitle(f'{probe}, peak width', fontsize=16)
 
     B_list_gen = np.linspace(0, result_dict[D_cut].B_set_list[-1])
     
@@ -1083,6 +1108,7 @@ def plot_study_results(result_dict: Results,
                         yerr=a1_err_list[i], 
                         color=color_list[i]
         )
+
         ax1[1].errorbar(D_list[i], 
                         a2_list[i] + n_post_correction, 
                         marker=marker, 
@@ -1095,7 +1121,37 @@ def plot_study_results(result_dict: Results,
                  color=color_list[i]
         )
         line_handles.append(line2)
-    
+
+        ax3[1].errorbar(D_list[i], 
+                        gamma_mean_D[i], 
+                        marker=marker, 
+                        yerr=gamma_std_D[i], 
+                        color=color_list[i]
+        )
+
+    N_D = len(result_dict.keys())
+    D_index_choices = [0, N_D//3, 2*N_D//3, N_D - 1]
+
+    color_list = generate_black_to_red(len(D_index_choices))
+
+    for j in range(len(D_index_choices)):
+
+        ax3[0].plot(result_dict[D_cut].B_set_list, 
+                    2*np.array(gamma_list)[D_index_choices[j]],
+                    #marker=marker, 
+                    color=color_list[j],
+                    label=f'D/$\epsilon_{0}$ = {D_list[D_index_choices[j]]:.3f}'
+        )
+
+
+    ax3[0].errorbar(result_dict[D_cut].B_set_list, 
+                    gamma_mean_B,
+                    #marker=marker, 
+                    yerr=gamma_std_B, 
+                    color='green',
+                    label='avg over D'
+    )
+
     first_par_name, second_par_name = get_parameter_names(filling)
 
     ax1[0].set_ylabel(first_par_name + r' [$(cm·T)^{-2}$]')
@@ -1113,8 +1169,16 @@ def plot_study_results(result_dict: Results,
                        f'D/$\epsilon_{0}$ = {D_list[-1]:.3f}']
     )
 
+    ax3[0].set_ylabel(r'$FWHM avg over D [$cm^{-2}$]')
+    ax3[0].set_xlabel(r'B [$T$]')
+
+    ax3[1].set_ylabel(r'$FWHM avg over B [$cm^{-2}$]')
+    ax3[1].set_xlabel(r'D [$V/nm$]')
+    ax3[0].legend()
+
     fig1.tight_layout()
     fig2.tight_layout()
+    fig3.tight_layout()
 
     if save_figs == True:
 
@@ -1156,8 +1220,9 @@ data_class = load_multiple_datasets()
 D_lims = (0.11, 0.174)
 probe = '11_06'
 n_lims = (-2.1e12, -1.43e12)
+#n_lims = (-3.1e12, -2.05e12)
 filling = 'one_third'
-save_figs = True
+save_figs = False
 
 results = run_study(data_class, D_lims, probe, n_lims=n_lims, filling=filling)
 inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
@@ -1194,10 +1259,10 @@ results = run_study(data_class, D_lims, probe, n_lims=n_lims, filling=filling)
 inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
 plot_study_results(results, probe, filling=filling, save_figs=save_figs)
 #%% inspection of raw data
-probe = '19_20'
-D_cut = 0.115
+probe = '11_06'
+D_cut = 0.25
 B_index = 4
-n_lims = (-2.3e12, -1.43e12)
+n_lims = (-3.1e12, -1.9e12)
 D_correction = set_D_correction(probe)
 Data_class = prepare_data_set(data_class, D_cut=D_cut + D_correction, probe=probe)
 
@@ -1208,19 +1273,26 @@ data_list = [Data_class.z_values_200, Data_class.z_values_05, Data_class.z_value
 Results_class_1.B_set_list = [0.2, 0.5, 0.75, 1, 1.5, 2, 2.25, 4]
 
 Results_class_1, data_list = filling_considerations(Results_class_1, data_list, filling)
+# (Results_class_1.n_set_list_slice, 
+# Results_class_1.data_list_slice,
+# Results_class_1.filter_flag,
+# Results_class_1.unfiltered_n_list,
+# Results_class_1.unfiltered_data_list) = shorten_array(Results_class_1.n_set_list, 
+#                                                       data_list, 
+#                                                       n_lims, 
+#                                                       filling)
+
 (Results_class_1.n_set_list_slice, 
-Results_class_1.data_list_slice,
-Results_class_1.filter_flag,
-Results_class_1.unfiltered_n_list,
-Results_class_1.unfiltered_data_list) = shorten_array(Results_class_1.n_set_list, 
-                                                      data_list, 
-                                                      n_lims, 
-                                                      filling)
+Results_class_1.data_list_slice,) = shorten_array_without_peak_isolation(
+    Results_class_1.n_set_list, 
+    data_list, 
+    n_lims, 
+)
 
 p0 = [1e18, -3e10, 3e10, -1e5, 0]
 
-filter_array = np.array(Results_class_1.filter_flag)
-filter_locs = np.where(filter_array == 1)[0]
+# filter_array = np.array(Results_class_1.filter_flag)
+# filter_locs = np.where(filter_array == 1)[0]
 for i in range(len(Results_class_1.n_set_list_slice)):
     plt.figure()
     plt.plot(np.array(Results_class_1.n_set_list_slice[i]) + get_n_correction(probe), 
@@ -1229,6 +1301,7 @@ for i in range(len(Results_class_1.n_set_list_slice)):
     p0[1] = Results_class_1.n_set_list_slice[i][np.argmax(Results_class_1.data_list_slice[i])]-3e10
     plt.plot(np.array(Results_class_1.n_set_list_slice[i]) + get_n_correction(probe),
              lorentzian(np.array(Results_class_1.n_set_list_slice[i]), *p0)/R_Q)
+
 # if len(filter_locs) > 0:
 #     for i in range(len(filter_locs)):
 #         plot_index = filter_locs[i]
