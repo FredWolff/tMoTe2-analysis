@@ -427,8 +427,8 @@ def lorentzian_log_likelihood(
         scaling: float,
         model_function: callable,
     ) -> float:
-    a1, a2 = params * scaling
-    model = model_function(x, a1, a2)
+    scaled_params = params * scaling
+    model = model_function(x, *scaled_params)
     residuals = (y - model)**2
     log_likelihood = -npa.sum(npa.log(gamma / (npa.pi * (residuals + gamma**2))))
     return log_likelihood
@@ -818,7 +818,99 @@ def get_parameter_names(filling: str) -> tuple[str]:
     
     return first_par_name, second_par_name
 
+def bundle_data_and_coords(arrays: tuple[NDArray[np.float64]]) -> NDArray[np.float64]:
+    return np.array([*arrays]).T
+
+def bootstrap_lrt(Results_class: Results, 
+                  null_model: callable, 
+                  alt_model: callable, 
+                  p0s: list[NDArray[np.float64]],
+                  n_bootstrap: int=10000,
+                  run_bootstrap: bool=True
+                  ) -> tuple[Union[float, list[float]], 
+                             Union[float, list[float]], 
+                             Union[list[float], list[list[float]]]]:
+    
+    fit_succes = np.array(Results_class.fit_succes)
+    succesful_fits = np.where(fit_succes == 1)[0]
+
+    coords = np.array(Results_class.B_set_list)[succesful_fits]
+    data = Results_class.x_max_coords[succesful_fits]
+    gamma = Results_class.fit_gamma[succesful_fits]
+    combined_input = bundle_data_and_coords((coords, data, gamma))
+    original_stat = log_likelihood_ratio_test(combined_input, null_model, alt_model, p0s)
+    
+    if run_bootstrap == True:
+        bootstrap_stats = []
+        for _ in range(n_bootstrap):
+            resampled_data = combined_input[np.random.choice(len(data), 
+                                                            size=len(data), 
+                                                            replace=False)]
+            
+            resampled_stat = log_likelihood_ratio_test(resampled_data, null_model, alt_model, p0s)
+            bootstrap_stats.append(resampled_stat)
+        
+        p_value = np.sum(np.array(bootstrap_stats) >= original_stat) / n_bootstrap
+    
+    else:
+        bootstrap_stats = np.zeros(n_bootstrap)
+        p_value = 0
+
+    return p_value, original_stat, bootstrap_stats
+
+def log_likelihood_ratio_test(combined_input: NDArray[NDArray[np.float64]], 
+                          null_model: callable, 
+                          alt_model: Union[callable, list[callable]],
+                          p0s: list[NDArray[np.float64]]
+                          ) -> Union[float, list[float]]:
+
+    p0_null, p0_alt = p0s
+    llh_null = run_fit(combined_input, null_model, p0_null)
+
+    if type(alt_model) != type(null_model):
+        llh_ratios = []
+
+        for alt in alt_model:
+            llh_alt = run_fit(combined_input, alt, p0_alt)
+            llh_ratios.append(2 * (llh_alt - llh_null))
+
+        return llh_ratios
+    
+    llh_alt = run_fit(combined_input, alt_model, p0_alt)
+    return 2 * (llh_alt - llh_null)
+
+def run_fit(combined_input: NDArray[NDArray[np.float64]], 
+            model_function: callable, 
+            p0: NDArray[np.float64]) -> Results:
+    
+    coords, data, gamma = combined_input.T
+    param_scaling = np.abs(p0)
+    args = (coords, data, gamma, param_scaling, model_function)
+
+    MLE_result = minimize(lorentzian_log_likelihood, 
+                          p0/param_scaling, 
+                          args=args,
+                          tol=1e-12,
+                          method='L-BFGS-B'
+    )
+
+    return -MLE_result.fun
+
+# def bayes_factor():
+
+#     scipy.integrate.quad()
+
 #n_adjustment = 3.39e11
+
+def get_n_of_alt_models(llh_list):
+
+    if len(llh_list) != np.size(llh_list):
+        llh_alt_model_count = np.shape(llh_list)[0]
+
+    else:
+        llh_alt_model_count = 1
+        
+    return llh_alt_model_count
 
 def run_study(
         Data_class: Data, 
@@ -826,7 +918,10 @@ def run_study(
         probe: str, 
         filling: str='half', 
         step: float=0.005, 
-        n_lims: tuple[float]=(-3.1e12, -2.05e12)
+        n_lims: tuple[float]=(-3.1e12, -2.05e12),
+        models_to_compare: list[callable]=None,
+        n_bootstrap: int=1000,
+        run_bootstrap: bool=True,
     ) -> dict[float, Results]:
 
     result_dict = {}
@@ -835,6 +930,24 @@ def run_study(
     print(D_cuts)
     for D_cut in D_cuts:
         results = run_fitting_routine(Data_class, D_cut, probe, filling, n_lims)
+
+        if models_to_compare is not None:
+            p0_alt = get_p0(filling, results)
+            p0_null = p0_alt[-1]
+            p0s = [p0_null, p0_alt]
+            (p_value, 
+             original_stat, 
+             bootstrap_stats) = bootstrap_lrt(results, 
+                                              models_to_compare[0], 
+                                              models_to_compare[1:], 
+                                              p0s,
+                                              n_bootstrap=n_bootstrap,
+                                              run_bootstrap=run_bootstrap)
+            results.p_value = p_value
+            results.original_stat = original_stat
+            results.bootstrap_stats = bootstrap_stats
+            results.models_to_compare = models_to_compare
+
         result_dict[D_cut] = results
 
     return result_dict
@@ -1057,7 +1170,8 @@ def plot_study_results(result_dict: Results,
      a2_err_list, 
      n_B_list, 
      filter_list, 
-     gamma_list) = [], [], [], [], [], [], [], []
+     gamma_list,
+     llh_ratio_list) = [], [], [], [], [], [], [], [], []
     
     for D_cut in result_dict.keys():
         D_list.append(D_cut)
@@ -1070,6 +1184,8 @@ def plot_study_results(result_dict: Results,
 
         filter_flag = np.array(result_dict[D_cut].filter_flag)
         filter_list.append(np.sum(filter_flag))
+
+        llh_ratio_list.append(result_dict[D_cut].original_stat)
         
     def get_mean_and_std(data_list: NDArray[NDArray[float]], 
                          axis: int=1) -> tuple[NDArray[float]]:
@@ -1077,6 +1193,16 @@ def plot_study_results(result_dict: Results,
 
     gamma_mean_B, gamma_std_B = get_mean_and_std(2*np.array(gamma_list), axis=0)
     gamma_mean_D, gamma_std_D = get_mean_and_std(2*np.array(gamma_list), axis=1)
+
+    llh_alt_model_count = get_n_of_alt_models(np.transpose(llh_ratio_list))
+
+    if llh_alt_model_count == 1:
+        fig0 = plt.figure(figsize=(8,6))
+        ax0 = fig0.add_subplot(111)
+    else: 
+        #fig0, ax0 = plt.subplots(llh_alt_model_count, 1, figsize=(10,7))
+        fig0, ax0 = plt.subplots(1, 1, figsize=(10,7))
+    plt.suptitle(f'{probe}, model comparison', fontsize=16)
 
     fig1, ax1 = plt.subplots(2, 1, figsize=(10,7))
     plt.suptitle(f'{probe}, fit parameters', fontsize=16)
@@ -1099,6 +1225,26 @@ def plot_study_results(result_dict: Results,
         marker = 'o'
         if filter_list[i] > 0:
             marker = 's'
+
+        if llh_alt_model_count == 1:
+            ax0.plot(D_list[i], 
+                    llh_ratio_list[i],
+                    color=color_list[i],
+                    marker=marker)
+            ax0.set_xlabel(r'D [$V/nm$]')
+            ax0.set_ylabel(r'$2 \cdot (llh_{A} - llh{H_0})$')
+            
+        #else:
+            #for alt_model_index in range(llh_alt_model_count):
+                ##### individual plots #####
+                # ax0[alt_model_index].plot(D_list[i], 
+                #                           llh_ratio_list[i][alt_model_index],
+                #                           color=color_list[i],
+                #                           marker=marker)
+                # ax0[alt_model_index].set_xlabel(r'D [$V/nm$]')
+                # ax0[alt_model_index].set_ylabel(r'$2 \cdot$' + 
+                #                             f'(llh_{alt_model_index + 1} - llh_H_0)')
+                ##### end #####
 
         ax1[0].errorbar(D_list[i], 
                         #a_SI_scaling(a_list[i]), 
@@ -1128,6 +1274,21 @@ def plot_study_results(result_dict: Results,
                         yerr=gamma_std_D[i], 
                         color=color_list[i]
         )
+    
+    ##### combined plot #####
+    if llh_alt_model_count != 1:
+        for alt_model_index in range(llh_alt_model_count):
+            alt_model = result_dict[D_list[0]].models_to_compare[alt_model_index + 1]
+            ax0.plot(D_list, 
+                     np.transpose(llh_ratio_list)[alt_model_index],
+                     marker=marker,
+                     label=r'$f_A$' + f'{alt_model.__code__.co_varnames}')
+            ax0.set_xlabel(r'D [$V/nm$]')
+            ax0.set_ylabel(r'$2 \cdot$' + 
+                        r'($llh_A - llh_{H_0})$')
+            if alt_model_index == llh_alt_model_count - 1:
+                ax0.legend()
+    ##### end #####
 
     N_D = len(result_dict.keys())
     D_index_choices = [0, N_D//3, 2*N_D//3, N_D - 1]
@@ -1201,16 +1362,19 @@ def plot_study_results(result_dict: Results,
     if save_figs == True:
 
         if filling == 'half':
+            fig0.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_model_comparison.png', dpi=300)
             fig1.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_coefficients.png', dpi=300)
             fig2.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_n_B_plots.png', dpi=300)
             fig3.savefig(f'/Volumes/STORE N GO/Plots/{probe}/{probe}_peak_width.png', dpi=300)
 
         if filling == 'one_third':
+            fig0.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/{probe}_model_comparison.png', dpi=300)
             fig1.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/{probe}_coefficients.png', dpi=300)
             fig2.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/{probe}_n_B_plots.png', dpi=300)
             fig3.savefig(f'/Volumes/STORE N GO/Plots/1-3/{probe}/{probe}_peak_width.png', dpi=300)
 
         if filling == 'two_thirds':
+            fig0.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/{probe}_model_comparison.png', dpi=300)
             fig1.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/{probe}_coefficients.png', dpi=300)
             fig2.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/{probe}_n_B_plots.png', dpi=300)
             fig3.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/{probe}_peak_width.png', dpi=300)
@@ -1244,9 +1408,21 @@ probe = '11_06'
 n_lims = (-3.1e12, -2.05e12)
 filling = 'half'
 save_figs = False
+run_bootstrap = False
 
-results = run_study(data_class, D_lims, probe, n_lims=n_lims, filling=filling)
-inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
+null_model = lambda x, c: c
+alt_model_1 = lambda x, b, c: b * x + c
+alt_model_2 = lambda x, a, c: a * x**2 + c
+models_to_compare = (null_model, alt_model_1, alt_model_2)
+
+results = run_study(data_class, 
+                    D_lims, 
+                    probe, 
+                    n_lims=n_lims, 
+                    filling=filling, 
+                    models_to_compare=models_to_compare,
+                    run_bootstrap=run_bootstrap)
+#inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
 plot_study_results(results, probe, filling=filling, save_figs=save_figs)
 # %% 0.13
 D_lims = (0.11, 0.174)#(0.13, 0.155)
