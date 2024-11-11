@@ -859,10 +859,10 @@ def bootstrap_lrt(Results_class: Results,
     return p_value, original_stat, bootstrap_stats
 
 def log_likelihood_ratio_test(combined_input: NDArray[NDArray[np.float64]], 
-                          null_model: callable, 
-                          alt_model: Union[callable, list[callable]],
-                          p0s: list[NDArray[np.float64]]
-                          ) -> Union[float, list[float]]:
+                              null_model: callable, 
+                              alt_model: Union[callable, list[callable]],
+                              p0s: list[NDArray[np.float64]]
+                              ) -> Union[float, list[float]]:
 
     p0_null, p0_alt = p0s
     llh_null = run_fit(combined_input, null_model, p0_null)
