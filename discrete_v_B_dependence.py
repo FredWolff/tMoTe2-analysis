@@ -902,7 +902,7 @@ def run_fit(combined_input: NDArray[NDArray[np.float64]],
 
 #n_adjustment = 3.39e11
 
-def get_n_of_alt_models(llh_list):
+def get_n_of_alt_models(llh_list: Union[float, list[float]]) -> int:
 
     if len(llh_list) != np.size(llh_list):
         llh_alt_model_count = np.shape(llh_list)[0]
@@ -911,6 +911,39 @@ def get_n_of_alt_models(llh_list):
         llh_alt_model_count = 1
         
     return llh_alt_model_count
+
+def get_asymptote(x_list: list[float], 
+                  y_list: list[float], 
+                  y_err_list: list[float], 
+                  allow_offset: bool=False
+                  ) -> tuple[tuple[float], callable, NDArray[np.float64]]:
+    
+    if allow_offset == False:
+        f_asymptote = lambda D, a_1, h: a_1 * np.exp(h / D)
+        p0 = [y_list[-1], 0.1]
+
+    else: 
+        f_asymptote = lambda D, a_1, h, c: a_1 * np.exp(h / D) + c
+        p0 = [y_list[-1], 0.1, -1e9]
+
+    params, pcov = scipy.optimize.curve_fit(f_asymptote, 
+                                            x_list, 
+                                            y_list, 
+                                            p0=p0,
+                                            sigma=y_err_list,
+                                            absolute_sigma=True)
+    return params, f_asymptote, pcov
+
+def par_with_uncertainty(a1: float, 
+                            a1_err: float
+                            ) -> tuple[int, float, int]:
+
+    a1_scale = find_scale(a1)
+    a1_err = a1_err/(10**a1_scale)
+    a1_err_scale = -find_scale(a1_err)
+    a1_err_scale = check_scale(a1_err_scale)
+
+    return a1_scale, a1_err, a1_err_scale
 
 def run_study(
         Data_class: Data, 
@@ -1158,7 +1191,9 @@ def inspect_study_quality(result_dict: dict[float, Results],
 def plot_study_results(result_dict: Results, 
                        probe: str, 
                        filling: str,
-                       save_figs: bool=False) -> None:
+                       save_figs: bool=False,
+                       asymptote_args: Union[bool, tuple[bool]]=False
+                       ) -> None:
 
     n_post_correction = get_n_correction(probe) - n_correction
     model_function = get_model(filling)
@@ -1204,8 +1239,41 @@ def plot_study_results(result_dict: Results,
         fig0, ax0 = plt.subplots(1, 1, figsize=(10,7))
     plt.suptitle(f'{probe}, model comparison', fontsize=16)
 
+    first_par_name, second_par_name = get_parameter_names(filling)
+
     fig1, ax1 = plt.subplots(2, 1, figsize=(10,7))
-    plt.suptitle(f'{probe}, fit parameters', fontsize=16)
+    if asymptote_args != False:
+        show_asymptote_plot, allow_offset = asymptote_args
+        (params, 
+        f_asymptote,
+        pcov_asymptote) = get_asymptote(D_list, 
+                                        a1_list,
+                                        a1_err_list,
+                                        allow_offset)
+
+        if allow_offset == False:
+            a1_asymptote, asymptote_rate = params
+            a1_err, a2_err = np.sqrt(np.diag(pcov_asymptote))
+            a1_offset = 0
+            offset_err = 0
+
+        elif allow_offset == True:
+            a1_asymptote, asymptote_rate, a1_offset = params
+            a1_err, a2_err, offset_err = np.sqrt(np.diag(pcov_asymptote))
+
+        a1_asymptote_adjusted = a1_asymptote + a1_offset
+        a1_err_adjusted = np.sqrt(a1_err**2 + offset_err**2)
+        a1_scale, a1_err, a1_err_scale = par_with_uncertainty(a1_asymptote_adjusted, a1_err_adjusted)
+        a2_scale, a2_err, a2_err_scale = par_with_uncertainty(asymptote_rate, a2_err)
+    
+        plt.suptitle(f'{probe}, fit parameters, ' +
+                    r'$\lim_{D/\epsilon_0 \to \infty}$' + 
+                    f'{first_par_name}' +
+                    r'$(D/\epsilon_0)$ = '
+                    f'{(a1_asymptote_adjusted*10**(-a1_scale)):.{a1_err_scale}f}e{a1_scale}$\pm$' +
+                    f'{(a1_err):.{a1_err_scale}f}e{a1_scale}, ', fontsize=16)
+    else:
+        plt.suptitle(f'{probe}, fit parameters', fontsize=16)
 
     fig2 = plt.figure(figsize=(8,6))
     ax2 = fig2.add_subplot(111)
@@ -1274,6 +1342,25 @@ def plot_study_results(result_dict: Results,
                         yerr=gamma_std_D[i], 
                         color=color_list[i]
         )
+
+    ax1_x_lims = ax1[0].get_xlim()
+
+    if asymptote_args != False:
+        if show_asymptote_plot == True:
+            
+            ax1[0].hlines(a1_asymptote_adjusted,
+                          ax1_x_lims[0]/2,
+                          ax1_x_lims[1]*2,
+                          linestyle='--',
+                          color='red')
+            
+            ax1[0].set_xlim(*ax1_x_lims)
+            
+            ax1[0].plot(D_list, 
+                        f_asymptote(D_list, *params), 
+                        color='red', 
+                        linestyle='-', 
+            )
     
     ##### combined plot #####
     if llh_alt_model_count != 1:
@@ -1327,8 +1414,6 @@ def plot_study_results(result_dict: Results,
                     label='avg over B'
     )
 
-    first_par_name, second_par_name = get_parameter_names(filling)
-
     ax1[0].set_ylabel(first_par_name + r' [$(cm·T)^{-2}$]')
     ax1[0].set_xlabel(r'D [$V/nm$]')
 
@@ -1344,7 +1429,7 @@ def plot_study_results(result_dict: Results,
                        f'D/$\epsilon_{0}$ = {D_list[-1]:.3f}']
     )
 
-    ax3[0].set_ylabel(r'$FWHM [$cm^{-2}$]')
+    ax3[0].set_ylabel(r'FWHM [$cm^{-2}$]')
     ax3[0].set_xlabel(r'B [$T$]')
     ax3[0].legend()
 
@@ -1352,7 +1437,7 @@ def plot_study_results(result_dict: Results,
     ax3[1].set_xlabel(r'B [$T$]')
     ax3[1].legend()
 
-    ax3[2].set_ylabel(r'$FWHM avg over B [$cm^{-2}$]')
+    ax3[2].set_ylabel(r'FWHM avg over B [$cm^{-2}$]')
     ax3[2].set_xlabel(r'D [$V/nm$]')
 
     fig1.tight_layout()
@@ -1402,13 +1487,17 @@ def generate_black_to_red(num_colors: int) -> list[tuple[float]]:
 #%%
 data_class = load_multiple_datasets()
 #%% 0.11
-D_lims = (0.12, 0.25)
+# D_lims = (0.12, 0.245)
+D_lims = (0.11, 0.175)
+step_size = 0.002
 probe = '11_06'
-# n_lims = (-2.1e12, -1.43e12)
-n_lims = (-3.1e12, -2.05e12)
-filling = 'half'
+n_lims = (-2.1e12, -1.43e12)
+# n_lims = (-3.1e12, -2.05e12)
+# filling = 'half'
+filling = 'one_third'
 save_figs = False
 run_bootstrap = False
+asymptote_args = (True, False) # (show_asymptote_plot, allow_offset)
 
 null_model = lambda x, c: c
 alt_model_1 = lambda x, b, c: b * x + c
@@ -1418,12 +1507,17 @@ models_to_compare = (null_model, alt_model_1, alt_model_2)
 results = run_study(data_class, 
                     D_lims, 
                     probe, 
+                    step=step_size,
                     n_lims=n_lims, 
                     filling=filling, 
                     models_to_compare=models_to_compare,
-                    run_bootstrap=run_bootstrap)
-#inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
-plot_study_results(results, probe, filling=filling, save_figs=save_figs)
+                    run_bootstrap=run_bootstrap,)
+# inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
+plot_study_results(results,
+                   probe,
+                   filling=filling,
+                   save_figs=save_figs,
+                   asymptote_args=asymptote_args)
 # %% 0.13
 D_lims = (0.11, 0.174)#(0.13, 0.155)
 probe = '19_20'
