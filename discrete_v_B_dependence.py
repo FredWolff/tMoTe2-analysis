@@ -53,6 +53,32 @@ database = 'Database_CD2_3'
 qc.config['core']['db_location'] = 'Volumes/STORE N GO/TD5/database/' + database + '.db'
 qc.initialise_database()
 qc.new_experiment("2023-10-10_tMoTe2.TD5-CD2", sample_name="TD5")
+
+input_dict = {'11_06': {'one_third': {'D_lims': (0.11, 0.175),
+                                      'n_lims': (-2.1e12, -1.43e12)},
+                        'half': {'D_lims': (0.12, 0.245),
+                                 'n_lims': (-3.1e12, -2.05e12)},
+                        'two_thirds': {'D_lims': (0.09, 0.145),
+                                       'n_lims': (-3.5e12, -2.8e12)}},
+              '19_20': {'one_third': {'D_lims': (0.11, 0.174),
+                                      'n_lims': (-2.25e12, -1.43e12)},
+                        'half': {'D_lims': (0.115, 0.245),
+                                 'n_lims': (-3.1e12, -2.05e12)},
+                        'two_thirds': {'D_lims': (0.095, 0.155),
+                                       'n_lims': (-3.5e12, -2.8e12)}},
+              '20_24': {'one_third': {'D_lims': (0.12, 0.174),
+                                       'n_lims': (-2.1e12, -1.43e12)},
+                        'half': {'D_lims': (0.11, 0.24),
+                                 'n_lims': (-3.1e12, -2.05e12)},
+                        'two_thirds': {'D_lims': (0.1, 0.11),
+                                       'n_lims': (-3.4e12, -2.8e12)}},
+              '06_05': {'one_third': {'D_lims': (0.11, 0.174),
+                                      'n_lims': (-2.1e12, -1.43e12)},
+                        'half': {'D_lims': (0.115, 0.245), 
+                                   'n_lims': (-3.1e12, -2.05e12)},
+                        'two_thirds': {'D_lims': (0, 0),
+                                       'n_lims': (-3.4e12, -2.8e12)}}}
+
 #%%
 ######### Resistance quantum ##########
 h_Planck = 6.62607015e-34
@@ -465,6 +491,7 @@ def find_scale(par: float) -> int:
 class Results():
     pass    
 
+#the if-statements look redundant
 def get_p0(filling: str, Results_class: Results) -> NDArray[np.float64]:
     if filling == 'one_third':
         p0_B_fit = np.array([-1e10, Results_class.x_max_coords[0]])
@@ -476,10 +503,10 @@ def get_p0(filling: str, Results_class: Results) -> NDArray[np.float64]:
 
 def get_model(filling: str) -> callable:
 
-    if filling == 'one_third':
+    if filling == 'one_third' or filling == 'two_thirds':
         model_function = affine
 
-    elif filling == 'half' or filling == 'two_thirds':
+    elif filling == 'half':
         model_function = quadratic
 
     return model_function
@@ -545,7 +572,7 @@ def run_fitting_routine(
         fit_pred = lorentzian(np.array(x_list), *popt)
         R_val = R_bar_squared(np.array(field_cut), fit_pred, popt)
 
-        if R_val < 0.8:
+        if R_val < 0.7:
             popt, pcov = p0, np.zeros((len(p0), len(p0)))
             fit_succes[-1] = 0
 
@@ -582,7 +609,8 @@ def run_fitting_routine(
                            Results_class.x_max_coords, 
                            p0=p0_B_fit, 
                            sigma=Results_class.fit_first_std,
-                           absolute_sigma=True)
+                           absolute_sigma=True,
+                           maxfev=5000)
 
     Results_class.quadratic_fit_pcov = pcov
     Results_class.quadratic_fit_params = popt
@@ -766,6 +794,16 @@ def determine_init_params(
             p0 = [1e17, 0, 5e10, 1e5, 0]
         elif probe == '06_05':
             p0 = [1e17, 0, 5e10, 1e5, 0]
+
+    if filling == 'two_thirds':
+        if probe == '11_06':
+            p0 = [1e15, 0, 8e10, 1e4, 0]
+        elif probe == '19_20':
+            p0 = [1e15, 0, 5e10, 1e3, 0]
+        elif probe == '20_24':
+            p0 = [1e15, 0, 5e10, 1e3, 0]
+        elif probe == '06_05':
+            p0 = [1e15, 0, 5e10, 1e6, 0]
     
     return p0
 
@@ -776,9 +814,9 @@ def filling_considerations(
     ) -> tuple[Results, list[NDArray[np.float64]]]:
 
     if filling == 'two_thirds':
-        Results_class.n_set_list = Results_class.n_set_list[:-2]
-        data_list = data_list[:-2]
-        Results_class.B_set_list = Results_class.B_set_list[:-2]
+        Results_class.n_set_list = Results_class.n_set_list[:-4]
+        data_list = data_list[:-4]
+        Results_class.B_set_list = Results_class.B_set_list[:-4]
 
     if filling == 'one_third':
         Results_class.n_set_list = Results_class.n_set_list[3:]
@@ -808,11 +846,11 @@ def check_scale(scale: int) -> int:
     
 def get_parameter_names(filling: str) -> tuple[str]:
 
-    if filling == 'one_third':
+    if filling == 'one_third' or filling == 'two_thirds':
         first_par_name = 'b'
         second_par_name = 'c'
 
-    if filling == 'half' or filling == 'two_thirds':
+    if filling == 'half':
         first_par_name = 'a'
         second_par_name = 'c'
     
@@ -1263,6 +1301,7 @@ def plot_study_results(result_dict: Results,
 
         a1_asymptote_adjusted = a1_asymptote + a1_offset
         a1_err_adjusted = np.sqrt(a1_err**2 + offset_err**2)
+        print(a1_asymptote, a1_err, a1_offset, offset_err)
         a1_scale, a1_err, a1_err_scale = par_with_uncertainty(a1_asymptote_adjusted, a1_err_adjusted)
         a2_scale, a2_err, a2_err_scale = par_with_uncertainty(asymptote_rate, a2_err)
     
@@ -1487,14 +1526,13 @@ def generate_black_to_red(num_colors: int) -> list[tuple[float]]:
 #%%
 data_class = load_multiple_datasets()
 #%% 0.11
-# D_lims = (0.12, 0.245)
-D_lims = (0.11, 0.175)
-step_size = 0.002
 probe = '11_06'
-n_lims = (-2.1e12, -1.43e12)
-# n_lims = (-3.1e12, -2.05e12)
-# filling = 'half'
-filling = 'one_third'
+step_size = 0.002
+filling = 'half'
+# filling = 'one_third'
+# filling = 'two_thirds'
+D_lims, n_lims = input_dict[probe][filling].values()
+
 save_figs = False
 run_bootstrap = False
 asymptote_args = (True, False) # (show_asymptote_plot, allow_offset)
@@ -1519,36 +1557,104 @@ plot_study_results(results,
                    save_figs=save_figs,
                    asymptote_args=asymptote_args)
 # %% 0.13
-D_lims = (0.11, 0.174)#(0.13, 0.155)
 probe = '19_20'
-n_lims = (-2.25e12, -1.43e12)
-filling = 'one_third'
-save_figs = True
+step_size = 0.002
+# filling = 'one_third'
+# filling = 'half'
+filling = 'two_thirds'
+# D_lims, n_lims = input_dict[probe][filling].values()
+D_lims = (0.155, 0.165)
+n_lims = (-3.5e12, -2.8e12)
 
-results = run_study(data_class, D_lims, probe, n_lims=n_lims, filling=filling)
+save_figs = False
+run_bootstrap = False
+asymptote_args = False#(True, False) # (show_asymptote_plot, allow_offset)
+
+null_model = lambda x, c: c
+alt_model_1 = lambda x, b, c: b * x + c
+alt_model_2 = lambda x, a, c: a * x**2 + c
+models_to_compare = (null_model, alt_model_1, alt_model_2)
+
+results = run_study(data_class, 
+                    D_lims, 
+                    probe, 
+                    step=step_size,
+                    n_lims=n_lims, 
+                    filling=filling, 
+                    models_to_compare=models_to_compare,
+                    run_bootstrap=run_bootstrap,)
 inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
-plot_study_results(results, probe, filling=filling, save_figs=save_figs)
+plot_study_results(results,
+                   probe,
+                   filling=filling,
+                   save_figs=save_figs,
+                   asymptote_args=asymptote_args)
 # %%
-D_lims = (0.12, 0.174)
 probe = '20_24'
-n_lims = (-2.1e12, -1.43e12)
-filling = 'one_third'
-save_figs = True
+step_size = 0.002
+# filling = 'one_third'
+# filling = 'half'
+filling = 'two_thirds'
+# D_lims, n_lims = input_dict[probe][filling].values()
+D_lims = (0.1, 0.11)
+n_lims = (-3.4e12, -2.8e12)
 
-results = run_study(data_class, D_lims, probe, n_lims=n_lims, filling=filling)
+save_figs = False
+run_bootstrap = False
+asymptote_args = False#(True, False) # (show_asymptote_plot, allow_offset)
+
+null_model = lambda x, c: c
+alt_model_1 = lambda x, b, c: b * x + c
+alt_model_2 = lambda x, a, c: a * x**2 + c
+models_to_compare = (null_model, alt_model_1, alt_model_2)
+
+results = run_study(data_class, 
+                    D_lims, 
+                    probe, 
+                    step=step_size,
+                    n_lims=n_lims, 
+                    filling=filling, 
+                    models_to_compare=models_to_compare,
+                    run_bootstrap=run_bootstrap,)
 inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
-plot_study_results(results, probe, filling=filling, save_figs=save_figs)
-
+# plot_study_results(results,
+#                    probe,
+#                    filling=filling,
+#                    save_figs=save_figs,
+#                    asymptote_args=asymptote_args)
 # %%
-D_lims = (0.11, 0.174)
 probe = '06_05'
-n_lims = (-2.1e12, -1.43e12)
-filling = 'one_third'
-save_figs = True
+step_size = 0.002
+# filling = 'one_third'
+# filling = 'half'
+filling = 'two_thirds'
+# D_lims, n_lims = input_dict[probe][filling].values()
+D_lims = (0.11, 0.115)
+n_lims = (-3.4e12, -2.8e12)
 
-results = run_study(data_class, D_lims, probe, n_lims=n_lims, filling=filling)
+save_figs = False
+run_bootstrap = False
+asymptote_args = False#(True, False) # (show_asymptote_plot, allow_offset)
+
+null_model = lambda x, c: c
+alt_model_1 = lambda x, b, c: b * x + c
+alt_model_2 = lambda x, a, c: a * x**2 + c
+models_to_compare = (null_model, alt_model_1, alt_model_2)
+
+results = run_study(data_class, 
+                    D_lims, 
+                    probe, 
+                    step=step_size,
+                    n_lims=n_lims, 
+                    filling=filling, 
+                    models_to_compare=models_to_compare,
+                    run_bootstrap=run_bootstrap,)
 inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
-plot_study_results(results, probe, filling=filling, save_figs=save_figs)
+# plot_study_results(results,
+#                    probe,
+#                    filling=filling,
+#                    save_figs=save_figs,
+#                    asymptote_args=asymptote_args)
 #%% inspection of raw data
 probe = '11_06'
 D_cut = 0.25
