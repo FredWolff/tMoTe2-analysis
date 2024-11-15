@@ -26,6 +26,8 @@
 # 06_05: D_correction = -0.01, D_lims = (0.11, 0.174), n_lims = (-2.1e12, -1.43e12)
 
 #%%
+%load_ext autoreload
+%autoreload 2
 from typing import Union, Optional
 import qcodes as qc
 from qcodes.dataset import load_by_id
@@ -62,8 +64,8 @@ data_class = load_multiple_datasets()
 #%% 0.11
 probe = '11_06'
 step_size = 0.002
-filling = 'half'
-# filling = 'one_third'
+# filling = 'half'
+filling = 'one_third'
 # filling = 'two_thirds'
 D_lims, n_lims = input_dict[probe][filling].values()
 
@@ -85,11 +87,11 @@ results = run_study(data_class,
                     models_to_compare=models_to_compare,
                     run_bootstrap=run_bootstrap,)
 # inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
-plot_study_results(results,
-                   probe,
-                   filling=filling,
-                   save_figs=save_figs,
-                   asymptote_args=asymptote_args)
+# plot_study_results(results,
+#                    probe,
+#                    filling=filling,
+#                    save_figs=save_figs,
+#                    asymptote_args=asymptote_args)
 # %% 0.13
 probe = '19_20'
 step_size = 0.002
@@ -253,4 +255,109 @@ popt, pcov = curve_fit(lorentzian, x_list, field_cut, p0=p0, method='trf')
 plt.plot(x_list, field_cut/R_Q)
 plt.plot(x_list + get_n_correction(probe),
          lorentzian(x_list, *popt)/R_Q)
+#%% combine fits from all filling fractions
+probe = '11_06'
+step_size = 0.001
+filling_half = 'half'
+filling_one_third = 'one_third'
+filling_two_thirds = 'two_thirds'
+D_lims_one_third, n_lims_one_third = input_dict[probe][filling_one_third].values()
+D_lims_half, n_lims_half = input_dict[probe][filling_half].values()
+D_lims_two_thirds, n_lims_two_thirds = input_dict[probe][filling_two_thirds].values()
+
+save_figs = False
+run_bootstrap = False
+asymptote_args = (True, True) # (show_asymptote_plot, allow_offset)
+
+null_model = lambda x, c: c
+alt_model_1 = lambda x, b, c: b * x + c
+alt_model_2 = lambda x, a, c: a * x**2 + c
+models_to_compare = (null_model, alt_model_1, alt_model_2)
+
+results_one_third = run_study(data_class, 
+                        D_lims_one_third, 
+                        probe, 
+                        step=step_size,
+                        n_lims=n_lims_one_third, 
+                        filling=filling_one_third, 
+                        models_to_compare=models_to_compare,
+                        run_bootstrap=run_bootstrap,)
+
+results_half = run_study(data_class, 
+                        D_lims_half, 
+                        probe, 
+                        step=step_size,
+                        n_lims=n_lims_half, 
+                        filling=filling_half, 
+                        models_to_compare=models_to_compare,
+                        run_bootstrap=run_bootstrap,)
+
+results_two_thirds = run_study(data_class, 
+                        D_lims_two_thirds, 
+                        probe, 
+                        step=step_size,
+                        n_lims=n_lims_two_thirds, 
+                        filling=filling_two_thirds, 
+                        models_to_compare=models_to_compare,
+                        run_bootstrap=run_bootstrap,)
+# %%
+D_cut = 0.12 - set_D_correction(probe)
+
+fig = plt.figure()
+ax = fig.add_subplot(111)
+
+n_post_correction = get_n_correction(probe) - n_correction
+
+filling_list = [filling_one_third, filling_half, filling_two_thirds]
+results_list = [results_one_third, results_half, results_two_thirds]
+
+color_dict = {filling_one_third: 'steelblue',
+              filling_half: 'crimson',
+              filling_two_thirds: 'forestgreen'}
+
+filling_dict = {filling_one_third: r'$\nu$ = 1/3',
+                filling_half: r'$\nu$ = 1/2',
+                filling_two_thirds: r'$\nu$ = 2/3'}
+
+line_handle_dict = {}
+
+for filling, result_dict in zip(filling_list, results_list):
+
+    model_function = get_model(filling)
+
+    fit_succes = np.array(result_dict[D_cut].fit_succes)
+    succesful_fits = np.where(fit_succes == 1)[0]
+    failed_fits = np.where(fit_succes == 0)[0]
+
+    filter_flag = np.array(result_dict[D_cut].filter_flag)
+    filtered_fits = np.where(filter_flag == 1)[0]
+
+    B_array = np.array(result_dict[D_cut].B_set_list)
+    data_array = np.array(result_dict[D_cut].x_max_coords_data)
+    fit_array = np.array(result_dict[D_cut].x_max_coords)
+    gamma_array = np.array(result_dict[D_cut].fit_gamma)
+
+    y_0 = fit_array[0] + n_post_correction
+    
+    line_1 = ax.errorbar(B_array[succesful_fits], 
+                        fit_array[succesful_fits] + n_post_correction - y_0, 
+                        yerr=gamma_array[succesful_fits], 
+                        fmt='o', 
+                        label=filling_dict[filling] + ', peak with FWHM', 
+                        color=color_dict[filling]
+    )
+
+    xs = np.linspace(0, 4, 301)
+    line_2 = ax.plot(xs, 
+                    model_function(xs, *result_dict[D_cut].MLE_params) + n_post_correction - y_0, 
+                    label=filling_dict[filling], 
+                    color=color_dict[filling]
+    )
+    line_handle_dict[filling] = line_1
+
+ax.set_xlabel('B [T]')
+ax.set_ylabel(r'$\delta$n [$cm^{-2}$]')
+ax.minorticks_on()
+ax.legend(handles=line_handle_dict.values())
+
 # %%

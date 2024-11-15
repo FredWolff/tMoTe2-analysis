@@ -1,4 +1,6 @@
 #%%
+%load_ext autoreload
+%autoreload 2
 from typing import Union, Optional
 import qcodes as qc
 from qcodes.dataset import load_by_id
@@ -48,6 +50,10 @@ database = 'Database_CD2_'
 qc.config['core']['db_location'] = 'Volumes/STORE N GO/TD5/database/' + database + '.db'
 qc.initialise_database()
 qc.new_experiment("2023-10-10_tMoTe2.TD5-CD2", sample_name="TD5")
+
+input_dict_high_B_res = {'11_06': {'one_third': (-2.1e12, -1.77e12),
+                                   'half': (-3.1e12, -2.2e12),
+                                   'two_thirds': (-3.7e12, -3.1e12)}}
 #%%
 ######### Resistance quantum ##########
 h_Planck = 6.62607015e-34
@@ -381,7 +387,8 @@ def run_study_single_D(
                 n_lims: tuple[float]=(-3.1e12, -2.05e12),
                 models_to_compare: list[callable]=None,
                 n_bootstrap: int=1000,
-                run_bootstrap: bool=True,
+                run_bootstrap: bool=False,
+                use_Wilks: bool=False,
                 ) -> dict[float, Results]:
 
     D_cut = 0.12
@@ -394,7 +401,7 @@ def run_study_single_D(
         p0_alt = get_p0(filling, results)
         p0_null = p0_alt[-1]
         p0s = [p0_null, p0_alt]
-        
+
         (p_value, 
          original_stat, 
          bootstrap_stats) = bootstrap_lrt(results, 
@@ -402,7 +409,8 @@ def run_study_single_D(
                                           models_to_compare[1:], 
                                           p0s,
                                           n_bootstrap=n_bootstrap,
-                                          run_bootstrap=run_bootstrap)
+                                          run_bootstrap=run_bootstrap,
+                                          use_Wilks=use_Wilks,)
         
         results.p_value = p_value
         results.original_stat = original_stat
@@ -632,10 +640,6 @@ plt.xlabel(r'n [$cm^{-2}$]')
 plt.ylabel(r'Bz [T]')
 plt.title(f'#{id}, ' + database + f'D={Data_class.DD[0][0]}V/nm')
 plt.colorbar(label=r'Rxx_11_06 [h/$e^2$]')
-#%%
-input_dict_high_B_res = {'11_06': {'one_third': (-2.1e12, -1.77e12),
-                                   'half': (-3.1e12, -2.2e12),
-                                   'two_thirds': (-3.7e12, -3.1e12)}}
 # %%
 probe = '11_06'
 # filling = 'half'
@@ -644,7 +648,8 @@ filling = 'two_thirds'
 n_lims = input_dict_high_B_res[probe][filling]
 
 save_figs = False
-run_bootstrap = False
+run_bootstrap = True
+use_Wilks = False
 asymptote_args = False#(True, True) # (show_asymptote_plot, allow_offset)
 
 null_model = lambda x, c: c
@@ -657,14 +662,22 @@ results = run_study_single_D(Data_class,
                              n_lims=n_lims, 
                              filling=filling, 
                              models_to_compare=models_to_compare,
-                             run_bootstrap=run_bootstrap,)
-inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
+                             run_bootstrap=run_bootstrap,
+                             use_Wilks=use_Wilks)
+# inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
 # plot_study_results(results,
 #                    probe,
 #                    filling=filling,
 #                    save_figs=save_figs,
 #                    asymptote_args=asymptote_args)
 
+#%%
+from scipy.stats import chi2
+fig = plt.figure(1)
+ax =  fig.add_axes(111)
+densities, edges, _ = ax.hist(np.transpose(results.bootstrap_stats)[0], bins=80, histtype='step', density=True)
+ax.vlines(results.original_stat[0], 0, np.max(densities), color='red')
+#ax.plot(edges, chi2.pdf(edges, 1), color='red')
 # %%
 probe = '11_06'
 filling = 'two_thirds'
@@ -683,8 +696,232 @@ p0 = [1e18, -3e10, 3e10, -1e5, 0]
 
 for i in range(len(n_set_list_slice[:-13])):
     plt.figure()
-    plt.plot(np.array(n_set_list_slice[i]) + get_n_correction(probe), 
-             np.array(data_list_slice[i])/R_Q, 
+    plt.plot(-1e-12 * (np.array(n_set_list_slice[i]) + get_n_correction(probe)), 
+             np.array(data_list_slice[i])/R_Q,
+             '.' ,
              label='filtered data')
+    plt.xlabel('n')
+    plt.ylabel('resistance')
 
-# %%
+#%% bootstrap function
+
+def get_endpoint_values(xdata: NDArray[np.float64],
+                        ydata: NDArray[np.float64],
+                        ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+
+    x_ends = [np.min(xdata[:10]), np.min(xdata[-10:])]
+    y_ends = [np.min(ydata[:10]), np.min(ydata[-10:])]
+    return x_ends, y_ends
+
+def subtract_background(xdata: NDArray[np.float64],
+                        ydata: NDArray[np.float64],) -> NDArray[np.float64]:
+
+    x_ends, y_ends = get_endpoint_values(xdata, ydata)
+    a, b = np.polyfit(x_ends, y_ends, 1)
+    ydata = np.array(ydata) - (a * np.array(xdata) + b)
+    return ydata
+
+def remove_background(xdata: NDArray[np.float64],
+                      ydata: NDArray[np.float64],) -> NDArray[np.float64]:
+    
+    y_data_new = subtract_background(xdata, ydata)
+    min_y = np.min(y_data_new)
+    if min_y < 0:
+        y_data_new = y_data_new - min_y
+
+    return y_data_new
+
+def pdf_to_cdf(xdata: NDArray[np.float64], P_of_n: NDArray[np.float64]
+               ) -> NDArray[np.float64]:
+    
+    dx = np.diff(xdata)
+    dx = np.append(dx, dx[-1])  
+    area = np.sum(P_of_n * dx)
+
+    P_normalized = P_of_n / area
+    CDF = np.cumsum(P_normalized * dx)
+    CDF = CDF / CDF[-1]
+    
+    return CDF
+
+def prepare_empirical_distribution(xdata: NDArray[np.float64],
+                                   ydata: NDArray[np.float64],):
+
+    y_data_new = remove_background(xdata, ydata)
+    CDF = pdf_to_cdf(xdata, y_data_new)
+    return CDF
+
+def inverse_cdf(xdata: NDArray[np.float64], 
+                cdf: NDArray[np.float64], 
+                cumulative_prob: float) -> float:
+
+    index = np.searchsorted(cdf, cumulative_prob, side='left')
+    return np.array(xdata)[index]
+
+def get_bootstrap_samples(xdata: NDArray[NDArray[np.float64]],
+                          ydata: NDArray[NDArray[np.float64]],
+                          size: int,) -> NDArray[NDArray[np.float64]]:
+    
+    seed = 5
+    np.random.seed(seed)
+    results_list = []
+    for x_array, y_array in zip(xdata, ydata):
+        cdf_list = prepare_empirical_distribution(x_array, y_array)
+    
+        P_lims = np.random.uniform(0, 1, size)
+        n_selects = inverse_cdf(x_array, cdf_list, P_lims)
+        results_list.append(n_selects)
+
+    return np.transpose(results_list)
+
+import concurrent.futures
+
+def fit_one_sample(B_list: NDArray[np.float64], 
+                   n_sample: NDArray[np.float64],
+                   ) -> tuple[NDArray[np.float64]]:
+    
+    null_model = lambda x, c: c
+    alt_model_1 = lambda x, b, c: b * x + c
+    alt_model_2 = lambda x, a, c: a * x**2 + c
+    models = [null_model, alt_model_1, alt_model_2]
+
+    p0_null = np.mean(n_sample)
+    p0_alt = [1e10, np.mean(n_sample)]
+
+    popt_null, pcov_null = curve_fit(models[0], B_list, n_sample, p0=p0_null)
+    popt_alt_1, pcov_alt_1 = curve_fit(models[1], B_list, n_sample, p0=p0_alt)
+    popt_alt_2, pcov_alt_2 = curve_fit(models[2], B_list, n_sample, p0=p0_alt)
+
+    return [popt_null[0], *popt_alt_1, *popt_alt_2]
+
+def fit_bootstrap_samples(Bdata: NDArray[np.float64], 
+                          samples: NDArray[NDArray[np.float64]],
+                          ) -> list[tuple[float, NDArray[np.float64], NDArray[np.float64]]]:
+    
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        results = list(executor.map(lambda n_data: fit_one_sample(Bdata, n_data), samples))
+
+    return results
+
+def run_bootstrap_study(Bdata: NDArray[NDArray[np.float64]],
+                        xdata: NDArray[NDArray[np.float64]],
+                        ydata: NDArray[NDArray[np.float64]],
+                        size: int,):
+
+    bootstrap_samples = get_bootstrap_samples(xdata, ydata, size)
+    fit_results = fit_bootstrap_samples(Bdata, bootstrap_samples)
+
+    return fit_results
+
+#%% test bootstrap
+probe = '11_06'
+filling = 'half'
+n_lims = input_dict_high_B_res[probe][filling]
+D_correction = set_D_correction(probe)
+Bperp_array = Data_class.Bperp[:, 0]
+size = int(1e5)
+
+data_list = getattr(Data_class, f'Rxx_{probe}')
+
+(n_set_list_slice, data_list_slice,) = shorten_array_without_peak_isolation(
+                                            Data_class.nn, 
+                                            data_list, 
+                                            n_lims,  
+)
+
+fit_results = run_bootstrap_study(
+    Bperp_array,
+    n_set_list_slice,
+    data_list_slice,
+    size,
+)
+
+n_bins=100
+#%%
+fit_results = np.array(fit_results)
+
+plt.figure()
+_ = plt.hist(fit_results[:, 0], bins=n_bins, histtype='step')
+plt.title(np.mean(fit_results[:, 0]))
+plt.xlabel('n_0')
+plt.ylabel('counts')
+
+plt.figure()
+_ = plt.hist(fit_results[:, 1], bins=n_bins, histtype='step')
+plt.title(np.mean(fit_results[:, 1]))
+plt.xlabel('b')
+plt.ylabel('counts')
+
+plt.figure()
+_ = plt.hist(fit_results[:, 2], bins=n_bins, histtype='step')
+plt.title(np.mean(fit_results[:, 2]))
+plt.xlabel('c_0 (affine model)')
+plt.ylabel('counts')
+
+plt.figure()
+_ = plt.hist(fit_results[:, 3], bins=n_bins, histtype='step')
+plt.title(np.mean(fit_results[:, 3]))
+plt.xlabel('a')
+plt.ylabel('counts')
+print('a > 0 with probability:', np.sum(fit_results[:, 3] > 0)/size)
+
+plt.figure()
+_ = plt.hist(fit_results[:, 4], bins=n_bins, histtype='step')
+plt.title(np.mean(fit_results[:, 4]))
+plt.xlabel('c_0 (quadratic model)')
+plt.ylabel('counts')
+
+#%%
+i = -1
+plt.figure()
+plt.plot(np.array(n_set_list_slice[i]) + get_n_correction(probe), 
+         remove_background(np.array(n_set_list_slice[i]), np.array(data_list_slice[i]))/R_Q,
+         '.')
+plt.xlabel('n')
+plt.ylabel('resistance')
+
+plt.figure()
+cdf_list = prepare_empirical_distribution(np.array(n_set_list_slice[i]), np.array(data_list_slice[i]))
+P_lim = np.random.uniform(0, 1)
+n_select = inverse_cdf(np.array(n_set_list_slice[i]), cdf_list, P_lim)
+plt.plot(np.array(n_set_list_slice[i]) + get_n_correction(probe),
+         cdf_list, '.')
+plt.hlines(P_lim, 
+           np.min(n_set_list_slice[i]) + get_n_correction(probe), 
+           np.max(n_set_list_slice[i]) + get_n_correction(probe), 
+           color='red')
+plt.plot(n_select + get_n_correction(probe), P_lim, 'o')
+plt.xlabel('n')
+plt.ylabel('cdf')
+
+#### gen sample ###
+plt.figure()
+size = 100000
+P_lims = np.random.uniform(0, 1, size)
+n_selects = np.array([inverse_cdf(np.array(n_set_list_slice[i]), cdf_list, P_lim) for P_lim in P_lims])
+_ = plt.hist(n_selects + get_n_correction(probe), bins=100)
+
+# %% bootstrapping
+probe = '11_06'
+filling = 'half'
+# filling = 'one_third'
+# filling = 'two_thirds'
+n_lims = input_dict_high_B_res[probe][filling]
+
+save_figs = False
+run_bootstrap = True
+use_Wilks = False
+asymptote_args = False#(True, True) # (show_asymptote_plot, allow_offset)
+
+null_model = lambda x, c: c
+alt_model_1 = lambda x, b, c: b * x + c
+alt_model_2 = lambda x, a, c: a * x**2 + c
+models_to_compare = (null_model, alt_model_1, alt_model_2)
+
+results = run_study_single_D(Data_class, 
+                             probe, 
+                             n_lims=n_lims, 
+                             filling=filling, 
+                             models_to_compare=models_to_compare,
+                             run_bootstrap=run_bootstrap,
+                             use_Wilks=use_Wilks)

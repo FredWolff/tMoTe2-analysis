@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 from scipy.stats import cauchy as cauchy_sc
+from scipy.stats import chi2
 from scipy.optimize import curve_fit, minimize
 from autograd import hessian
 from autograd.scipy.stats import t
@@ -16,6 +17,7 @@ def cauchy(
     return t.pdf(x, 1, loc=loc, scale=scale)
 import autograd.numpy as npa
 import scipy
+import inspect
 
 input_dict = {'11_06': {'one_third': {'D_lims': (0.11, 0.175),
                                       'n_lims': (-2.1e12, -1.43e12)},
@@ -826,7 +828,8 @@ def bootstrap_lrt(Results_class: Results,
                   alt_model: callable, 
                   p0s: list[NDArray[np.float64]],
                   n_bootstrap: int=10000,
-                  run_bootstrap: bool=True
+                  run_bootstrap: bool=True,
+                  use_Wilks: bool=False,
                   ) -> tuple[Union[float, list[float]], 
                              Union[float, list[float]], 
                              Union[list[float], list[list[float]]]]:
@@ -837,6 +840,7 @@ def bootstrap_lrt(Results_class: Results,
     coords = np.array(Results_class.B_set_list)[succesful_fits]
     data = Results_class.x_max_coords[succesful_fits]
     gamma = Results_class.fit_gamma[succesful_fits]
+
     combined_input = bundle_data_and_coords((coords, data, gamma))
     original_stat = log_likelihood_ratio_test(combined_input, null_model, alt_model, p0s)
     
@@ -844,14 +848,27 @@ def bootstrap_lrt(Results_class: Results,
         bootstrap_stats = []
         for _ in range(n_bootstrap):
             resampled_data = combined_input[np.random.choice(len(data), 
-                                                            size=len(data), 
-                                                            replace=False)]
+                                            size=len(data), 
+                                            replace=True)]
             
             resampled_stat = log_likelihood_ratio_test(resampled_data, null_model, alt_model, p0s)
             bootstrap_stats.append(resampled_stat)
         
         p_value = np.sum(np.array(bootstrap_stats) >= original_stat) / n_bootstrap
     
+    elif use_Wilks == True:
+        sig_null = inspect.signature(null_model)
+        
+        if type(alt_model) != type(null_model):
+            sig_alt = inspect.signature(alt_model[0])
+        
+        else:
+            sig_alt = inspect.signature(alt_model)
+        
+        df = len(sig_alt.parameters) - len(sig_null.parameters)
+        p_value = 1 - chi2.cdf(original_stat, df)
+        bootstrap_stats = np.zeros(n_bootstrap)
+
     else:
         bootstrap_stats = np.zeros(n_bootstrap)
         p_value = 0
@@ -954,7 +971,8 @@ def run_study(
         n_lims: tuple[float]=(-3.1e12, -2.05e12),
         models_to_compare: list[callable]=None,
         n_bootstrap: int=1000,
-        run_bootstrap: bool=True,
+        run_bootstrap: bool=False,
+        use_Wilks: bool=False,
     ) -> dict[float, Results]:
 
     result_dict = {}
@@ -962,7 +980,7 @@ def run_study(
     D_cuts = np.arange(D_lims[0], D_lims[1] + step, step)
     print(D_cuts)
     for D_cut in D_cuts:
-        results = run_fitting_routine(Data_class, D_cut, probe, filling, n_lims)
+        results = run_fitting_routine(Data_class, np.around(D_cut, 3), probe, filling, n_lims)
 
         if models_to_compare is not None:
             p0_alt = get_p0(filling, results)
@@ -975,13 +993,14 @@ def run_study(
                                               models_to_compare[1:], 
                                               p0s,
                                               n_bootstrap=n_bootstrap,
-                                              run_bootstrap=run_bootstrap)
+                                              run_bootstrap=run_bootstrap,
+                                              use_Wilks=use_Wilks)
             results.p_value = p_value
             results.original_stat = original_stat
             results.bootstrap_stats = bootstrap_stats
             results.models_to_compare = models_to_compare
 
-        result_dict[D_cut] = results
+        result_dict[np.around(D_cut, 3)] = results
 
     return result_dict
 
