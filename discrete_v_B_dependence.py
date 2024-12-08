@@ -63,15 +63,15 @@ qc.new_experiment("2023-10-10_tMoTe2.TD5-CD2", sample_name="TD5")
 data_class = load_multiple_datasets()
 #%% 0.11
 probe = '11_06'
-step_size = 0.002
-# filling = 'half'
-filling = 'one_third'
+step_size = 0.001
+filling = 'half'
+# filling = 'one_third'
 # filling = 'two_thirds'
 D_lims, n_lims = input_dict[probe][filling].values()
 
-save_figs = False
+save_figs = True#False
 run_bootstrap = False
-asymptote_args = (True, True) # (show_asymptote_plot, allow_offset)
+asymptote_args = (False, False)#(True, True) # (show_asymptote_plot, allow_offset)
 
 null_model = lambda x, c: c
 alt_model_1 = lambda x, b, c: b * x + c
@@ -86,25 +86,25 @@ results = run_study(data_class,
                     filling=filling, 
                     models_to_compare=models_to_compare,
                     run_bootstrap=run_bootstrap,)
-# inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
-# plot_study_results(results,
-#                    probe,
-#                    filling=filling,
-#                    save_figs=save_figs,
-#                    asymptote_args=asymptote_args)
+inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
+plot_study_results(results,
+                   probe,
+                   filling=filling,
+                   save_figs=save_figs,
+                   asymptote_args=asymptote_args)
 # %% 0.13
 probe = '19_20'
-step_size = 0.002
+step_size = 0.001
 # filling = 'one_third'
-# filling = 'half'
-filling = 'two_thirds'
-# D_lims, n_lims = input_dict[probe][filling].values()
-D_lims = (0.155, 0.165)
-n_lims = (-3.5e12, -2.8e12)
+filling = 'half'
+# filling = 'two_thirds'
+D_lims, n_lims = input_dict[probe][filling].values()
+D_lims = (0.128, 0.24)
+# n_lims = (-3.5e12, -2.8e12)
 
-save_figs = False
+save_figs = True#False
 run_bootstrap = False
-asymptote_args = False#(True, False) # (show_asymptote_plot, allow_offset)
+asymptote_args = (False, False)# (show_asymptote_plot, allow_offset)
 
 null_model = lambda x, c: c
 alt_model_1 = lambda x, b, c: b * x + c
@@ -127,17 +127,17 @@ plot_study_results(results,
                    asymptote_args=asymptote_args)
 # %%
 probe = '20_24'
-step_size = 0.002
+step_size = 0.001
 # filling = 'one_third'
-# filling = 'half'
-filling = 'two_thirds'
-# D_lims, n_lims = input_dict[probe][filling].values()
-D_lims = (0.1, 0.11)
-n_lims = (-3.4e12, -2.8e12)
+filling = 'half'
+# filling = 'two_thirds'
+D_lims, n_lims = input_dict[probe][filling].values()
+# D_lims = (0.1, 0.11)
+# n_lims = (-3.4e12, -2.8e12)
 
-save_figs = False
+save_figs = True#False
 run_bootstrap = False
-asymptote_args = False#(True, False) # (show_asymptote_plot, allow_offset)
+asymptote_args = (False, False) # (show_asymptote_plot, allow_offset)
 
 null_model = lambda x, c: c
 alt_model_1 = lambda x, b, c: b * x + c
@@ -153,24 +153,24 @@ results = run_study(data_class,
                     models_to_compare=models_to_compare,
                     run_bootstrap=run_bootstrap,)
 inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
-# plot_study_results(results,
-#                    probe,
-#                    filling=filling,
-#                    save_figs=save_figs,
-#                    asymptote_args=asymptote_args)
+plot_study_results(results,
+                   probe,
+                   filling=filling,
+                   save_figs=save_figs,
+                   asymptote_args=asymptote_args)
 # %%
 probe = '06_05'
-step_size = 0.002
+step_size = 0.001
 # filling = 'one_third'
-# filling = 'half'
-filling = 'two_thirds'
-# D_lims, n_lims = input_dict[probe][filling].values()
-D_lims = (0.11, 0.115)
-n_lims = (-3.4e12, -2.8e12)
+filling = 'half'
+# filling = 'two_thirds'
+D_lims, n_lims = input_dict[probe][filling].values()
+# D_lims = (0.11, 0.115)
+# n_lims = (-3.4e12, -2.8e12)
 
-save_figs = False
+save_figs = True#False
 run_bootstrap = False
-asymptote_args = False#(True, False) # (show_asymptote_plot, allow_offset)
+asymptote_args = (False, False) # (show_asymptote_plot, allow_offset)
 
 null_model = lambda x, c: c
 alt_model_1 = lambda x, b, c: b * x + c
@@ -186,11 +186,11 @@ results = run_study(data_class,
                     models_to_compare=models_to_compare,
                     run_bootstrap=run_bootstrap,)
 inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
-# plot_study_results(results,
-#                    probe,
-#                    filling=filling,
-#                    save_figs=save_figs,
-#                    asymptote_args=asymptote_args)
+plot_study_results(results,
+                   probe,
+                   filling=filling,
+                   save_figs=save_figs,
+                   asymptote_args=asymptote_args)
 #%% inspection of raw data
 probe = '11_06'
 D_cut = 0.25

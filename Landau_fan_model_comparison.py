@@ -27,6 +27,7 @@ from functions import (Data,
                        Results,
                        R_bar_squared,
                        lorentzian,
+                       gaussian,
                        quadratic,
                        affine,
                        lorentzian_log_likelihood,
@@ -42,6 +43,7 @@ from functions import (Data,
                        find_scale,
                        input_dict,
                        shorten_array_without_peak_isolation,
+                       gauss_base,
 )
 
 qc.config['user']['mainfolder'] = '/Volumes/STORE N GO/TD5'
@@ -343,6 +345,93 @@ def run_fitting_routine_single_D(
 
     return Results_class
 
+def run_fitting_routine_single_D_gauss(
+    Data_class: Data, 
+    D_cut: Union[int,float], 
+    probe: str, 
+    filling: str='half', 
+    n_lims: tuple[float]=(-3.1e12, -2.15e12),
+) -> Results:
+    """probe should be of form 'XX_YY' where XX is the top probe and YY is the bottom probe"""
+    
+    Results_class = Results()
+
+    data_list = getattr(Data_class, f'Rxx_{probe}')
+    n_lists = Data_class.nn
+    Bperp_list = Data_class.Bperp[:, 0]
+    if filling == 'one_third':
+        cut_off = -17
+        data_list =  data_list[:cut_off]
+        n_lists = n_lists[:cut_off]
+        Bperp_list = Bperp_list[:cut_off]
+
+    (Results_class.n_set_list_slice, 
+     Results_class.data_list_slice, 
+     Results_class.filter_flag,
+     Results_class.unfiltered_n_list,
+     Results_class.unfiltered_data_list) = shorten_array(n_lists, 
+                                                         data_list, 
+                                                         n_lims, 
+                                                         filling)
+
+    x_max_coords = []
+    x_max_coords_data = []
+    y_max_values = []
+    fit_params = []
+    fit_errors = []
+    fit_first_std = []
+    fit_second_std = []
+    fit_gamma = []
+    fit_R_sq_red = []
+    fit_succes = []
+    
+    p0 = determine_init_params(probe, D_cut, filling)
+    for x_list, field_cut in zip(Results_class.n_set_list_slice, Results_class.data_list_slice):
+        p0[1] = x_list[np.argmax(field_cut)]
+
+        try:
+            popt, pcov = curve_fit(gaussian, x_list, field_cut, p0=p0)#, bounds=bounds)
+            fit_succes.append(1)
+        except:
+            popt, pcov = p0, np.zeros((len(p0), len(p0)))
+            fit_succes.append(0)
+
+        fit_pred = gaussian(np.array(x_list), *popt)
+        R_val = R_bar_squared(np.array(field_cut), fit_pred, popt)
+
+        if R_val < 0.7:
+            popt, pcov = p0, np.zeros((len(p0), len(p0)))
+            fit_succes[-1] = 0
+
+        a, x0, gamma, c, al = popt
+        
+        fit_params.append(popt)
+        fit_errors.append(np.sqrt(np.diag(pcov)))
+        fit_first_std.append((np.diff(cauchy_sc.interval(0.68, loc=x0, scale=gamma))/2)[0])
+        fit_second_std.append((np.diff(cauchy_sc.interval(0.95, loc=x0, scale=gamma))/2)[0])
+        fit_gamma.append(gamma)
+
+        x_max_coords_data.append(x_list[np.argmax(field_cut)])
+        x_max_coords.append(x0)
+        y_max_values.append(lorentzian(x0, *popt))
+
+        fit_R_sq_red.append(R_val)
+
+    Results_class.D_cut = D_cut
+    Results_class.B_set_list = Bperp_list
+    Results_class.x_max_coords = np.array(x_max_coords)
+    Results_class.x_max_coords_data = np.array(x_max_coords_data)
+    Results_class.y_max_values = np.array(y_max_values)
+    Results_class.fit_params = np.array(fit_params)
+    Results_class.fit_errors = np.array(fit_errors)
+    Results_class.fit_gamma = np.array(fit_gamma)
+    Results_class.fit_first_std = np.array(fit_first_std)
+    Results_class.fit_second_std = np.array(fit_second_std)
+    Results_class.fit_R_sq_red = np.array(fit_R_sq_red)
+    Results_class.fit_succes = np.array(fit_succes)
+
+    return Results_class
+
 # def bootstrap_lrt(Results_class: Results, 
 #                   null_model: callable, 
 #                   alt_model: callable, 
@@ -391,7 +480,7 @@ def run_study_single_D(
                 use_Wilks: bool=False,
                 ) -> dict[float, Results]:
 
-    D_cut = 0.12
+    D_cut = 0.135
     D_correction = set_D_correction(probe)
     D_cut += D_correction
     results = run_fitting_routine_single_D(Data_class, D_cut, probe, filling, n_lims)
@@ -418,6 +507,106 @@ def run_study_single_D(
         results.models_to_compare = models_to_compare
 
     return results
+
+def run_study_single_D_gauss(
+    Data_class: Data, 
+    probe: str, 
+    filling: str='half', 
+    n_lims: tuple[float]=(-3.1e12, -2.05e12),
+    models_to_compare: list[callable]=None,
+) -> dict[float, Results]:
+
+    D_cut = 0.12
+    D_correction = set_D_correction(probe)
+    D_cut += D_correction
+    results = run_fitting_routine_single_D_gauss(
+        Data_class, 
+        D_cut, 
+        probe, 
+        filling, 
+        n_lims
+    )
+
+    if models_to_compare is not None:
+
+        combined_input = bundle_data_and_coords(results)
+        p0_alt = np.array([-1e10, results.x_max_coords[0]])
+        p0_null = [p0_alt[-1]]
+        p0s = [p0_null, p0_alt, p0_alt]
+        (popt_list, 
+         pcov_list, 
+         residuals_list, 
+         p_list, 
+         chi_list) = [], [], [], [], []
+
+        for model, p0 in zip(models_to_compare, p0s):
+            popt, pcov = run_fit_gaussian(combined_input, model, p0)
+            residuals = calculate_residuals_gaussian(combined_input, model, popt)
+            p_value, chi_sq = calculate_p_value_gaussian(
+                residuals, 
+                results.fit_gamma, 
+                len(p0)
+            )
+            
+            popt_list.append(popt)
+            pcov_list.append(pcov)
+            residuals_list.append(residuals)
+            p_list.append(p_value)
+            chi_list.append(chi_sq)
+        
+        results.popt_B_fits = popt_list
+        results.pcov_B_fits = pcov_list
+        results.residuals_B_fits = residuals_list
+        results.p_B_fits = p_list
+        results.chi_B_fits = chi_list
+        results.models_to_compare = models_to_compare
+
+    return results
+
+def bundle_data_and_coords(Results_class: Results,
+                           ) -> NDArray[NDArray[np.float64]]:
+    fit_succes = np.array(Results_class.fit_succes)
+    succesful_fits = np.where(fit_succes == 1)[0]
+
+    coords = np.array(Results_class.B_set_list)[succesful_fits]
+    data = Results_class.x_max_coords[succesful_fits]
+    gamma = Results_class.fit_gamma[succesful_fits]
+
+    combined_input = np.array([coords, data, gamma]).T
+    return combined_input
+
+def run_fit_gaussian(combined_input: NDArray[NDArray[np.float64]], 
+            model_function: callable, 
+            p0: NDArray[np.float64]) -> Results:
+    
+    coords, data, sigma = combined_input.T
+
+    popt, pcov = curve_fit(
+        model_function, 
+        coords, 
+        data, 
+        p0=p0, 
+        sigma=sigma, 
+        absolute_sigma=True
+    )
+
+    return popt, pcov
+
+def calculate_residuals_gaussian(combined_input: NDArray[NDArray[np.float64]],
+                        model_function: callable,
+                        popt: NDArray[np.float64]) -> NDArray[np.float64]:
+    
+    coords, data, sigma = combined_input.T
+    residuals = data - model_function(coords, *popt)
+    return residuals
+
+def calculate_p_value_gaussian(residuals: NDArray[np.float64],
+                      sigma: NDArray[np.float64],
+                      n_params: int) -> float:
+    
+    chi_sq = np.sum((residuals/sigma)**2)
+    p_value = 1 - scipy.stats.chi2.cdf(chi_sq, len(residuals) - n_params)
+    return p_value, chi_sq
 
 def inspect_study_quality(results: dict[float, Results], 
                           probe: str, 
@@ -813,6 +1002,22 @@ def run_bootstrap_study(Bdata: NDArray[NDArray[np.float64]],
 
     return fit_results
 
+def AIC(k, nLLH):
+    LLH = -nLLH
+    return 2*k - 2*LLH
+
+def BIC(k, nLLH, n):
+    LLH = -nLLH
+    return k * np.log(n) - 2*LLH
+
+def gaussian_neq_log_likelihood(
+        unc_array: NDArray[np.float64], 
+        residuals: NDArray[np.float64], 
+    ) -> float:
+
+    log_likelihood = -npa.sum(npa.log(gauss_base(residuals, 0, unc_array)))
+    return log_likelihood
+
 #%% test bootstrap
 probe = '11_06'
 filling = 'half'
@@ -925,3 +1130,91 @@ results = run_study_single_D(Data_class,
                              models_to_compare=models_to_compare,
                              run_bootstrap=run_bootstrap,
                              use_Wilks=use_Wilks)
+
+#%% Gaussian fit
+probe = '11_06'
+filling = 'half'
+# filling = 'one_third'
+# filling = 'two_thirds'
+n_lims = input_dict_high_B_res[probe][filling]
+
+save_figs = False
+run_bootstrap = True
+use_Wilks = False
+asymptote_args = False#(True, True) # (show_asymptote_plot, allow_offset)
+
+null_model = lambda x, c: c
+alt_model_1 = lambda x, b, c: b * x + c
+alt_model_2 = lambda x, a, c: a * x**2 + c
+models_to_compare = (null_model, alt_model_1, alt_model_2)
+
+results_short = run_study_single_D_gauss(
+    Data_class, 
+    probe, 
+    n_lims=n_lims, 
+    filling=filling, 
+    models_to_compare=models_to_compare,
+)
+# inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
+
+# %%
+long_B_xarray = np.array(results[0.135].B_set_list)
+long_B_yarray = np.array(results[0.135].x_max_coords)
+# %%
+short_B_xarray = np.array(results_short.B_set_list)
+short_B_yarray = np.array(results_short.x_max_coords)
+# %%
+plt.plot(short_B_xarray, short_B_yarray-short_B_yarray[-1], 'o', label='#141')
+plt.plot(long_B_xarray, long_B_yarray-long_B_yarray[0], '.', label='2D gate maps')
+plt.legend()
+plt.xlabel('B [T]')
+plt.ylabel(r'$\delta$n [$cm^{-2}$]')
+
+combined_input_B_long = bundle_data_and_coords(results[0.135])
+combined_input_B_long[:, 1] = combined_input_B_long[:, 1] - combined_input_B_long[:, 1][0]
+combined_input_B_short = bundle_data_and_coords(results_short)
+combined_input_B_short[:, 1] = combined_input_B_short[:, 1] - combined_input_B_short[:, 1][-1]
+combined_input = np.concatenate(([combined_input_B_long[-1]], combined_input_B_short), axis=0)
+unc_array = np.concatenate((results_short.fit_gamma, [results[0.135].fit_gamma[-1]]), axis=0)
+p0_alt = np.array([-1e10, -0.1])
+p0_null = [p0_alt[-1]]
+p0s = [p0_null, p0_alt, p0_alt]
+(popt_list, 
+ pcov_list, 
+ residuals_list, 
+ p_list, 
+ chi_list,
+ LLH_list,
+ AIC_list,
+ BIC_list) = [], [], [], [], [], [], [], []
+
+for model, p0 in zip(models_to_compare, p0s):
+    popt, pcov = run_fit_gaussian(combined_input, model, p0)
+    residuals = calculate_residuals_gaussian(combined_input, model, popt)
+    p_value, chi_sq = calculate_p_value_gaussian(
+        residuals, 
+        unc_array, 
+        len(p0)
+    )
+    
+    nLLH = gaussian_neq_log_likelihood(unc_array, residuals)
+    AIC_val = AIC(len(p0), nLLH)
+    BIC_val = BIC(len(p0), nLLH, len(combined_input[0]))
+
+    popt_list.append(popt)
+    pcov_list.append(pcov)
+    residuals_list.append(residuals)
+    p_list.append(p_value)
+    chi_list.append(chi_sq)
+    LLH_list.append(-nLLH)
+    AIC_list.append(AIC_val)
+    BIC_list.append(BIC_val)
+
+# %% likelihood ratio test for combined data sets
+
+null_model = lambda x, c: c
+alt_model_1 = lambda x, b, c: b * x + c
+alt_model_2 = lambda x, a, c: a * x**2 + c
+models_to_compare = (null_model, alt_model_1, alt_model_2)
+
+# %%
