@@ -69,6 +69,8 @@ filling = 'half'
 # filling = 'two_thirds'
 D_lims, n_lims = input_dict[probe][filling].values()
 
+D_lims = (0.13, 0.131)
+
 save_figs = True#False
 run_bootstrap = False
 asymptote_args = (False, False)#(True, True) # (show_asymptote_plot, allow_offset)
@@ -86,12 +88,30 @@ results = run_study(data_class,
                     filling=filling, 
                     models_to_compare=models_to_compare,
                     run_bootstrap=run_bootstrap,)
-inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
-plot_study_results(results,
-                   probe,
-                   filling=filling,
-                   save_figs=save_figs,
-                   asymptote_args=asymptote_args)
+# inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
+# plot_study_results(results,
+#                    probe,
+#                    filling=filling,
+#                    save_figs=save_figs,
+#                    asymptote_args=asymptote_args)
+#%% 
+plt.plot(results[0.13].parameter_ranges[0], results[0.13].likelihood_curves[0], label='data')
+plt.plot(results[0.13].parameter_ranges[0], results[0.13].y_hess_a1, label='hessian')
+
+ML_val = np.min(results[0.13].likelihood_curves[0])
+ML_pos = results[0.13].parameter_ranges[0][np.argmin(results[0.13].likelihood_curves[0])]
+popt, pcov = scipy.optimize.curve_fit(lambda x, a: a*(x-ML_pos)**2 + ML_val,
+                                      results[0.13].parameter_ranges[0],
+                                      results[0.13].likelihood_curves[0],)
+plt.plot(results[0.13].parameter_ranges[0], 
+         popt[0]*(results[0.13].parameter_ranges[0]-ML_pos)**2 + ML_val, 
+         label='constrained fit')
+plt.legend()
+#%%
+
+
+
+
 # %% 0.13
 probe = '19_20'
 step_size = 0.001

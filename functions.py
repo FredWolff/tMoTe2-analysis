@@ -439,18 +439,27 @@ def lorentzian_log_likelihood(
     log_likelihood = -npa.sum(npa.log(gamma / (npa.pi * (residuals + gamma**2))))
     return log_likelihood
 
+def map_hessian(hessian, scaling):
+    hessian[0,0] = hessian[0,0] / scaling[0]**2
+    hessian[1,1] = hessian[1,1] / scaling[1]**2
+    hessian[0,1] = hessian[0,1] / (scaling[0] * scaling[1])
+    hessian[1,0] = hessian[1,0] / (scaling[0] * scaling[1])
+    return hessian
+
 def get_MLE_error(
         params: NDArray[np.float64], 
-        args:  tuple[NDArray[np.float64], NDArray[np.float64], float, float]
+        args:  tuple[NDArray[np.float64], NDArray[np.float64], float, float],
+        scaling_params: NDArray[np.float64],
     ) -> NDArray[np.float64]:
     
     x, y, gamma, scaling, model = args
     hessian_func = hessian(lorentzian_log_likelihood)
     hessian_matrix = hessian_func(params, x, y, gamma, scaling, model)
+    hessian_matrix = map_hessian(hessian_matrix, scaling_params)
     cov_matrix = np.linalg.inv(hessian_matrix)
     errors = np.sqrt(np.diag(cov_matrix))
 
-    return errors
+    return errors, hessian_matrix
 
 def find_scale(par: float) -> int:
     i = 0
@@ -608,6 +617,7 @@ def run_fitting_routine(
             param_scaling,
             model_function
     )
+    #print(args)
     ##### end #####
 
     ##### for including failed fits with recontructed errors #####
@@ -631,12 +641,197 @@ def run_fitting_routine(
                           tol=1e-12,
                           method='L-BFGS-B'
     )
-    
-    MLE_autograd_error = get_MLE_error(MLE_result.x, args)
 
+    def LL_ratio_stat(MLL: float, current_LL: float) ->  float:
+        return -2*(MLL - current_LL)
+
+    def find_parameter_range(
+            params: NDArray[np.float64],
+            param_std: NDArray[np.float64],
+    ) -> tuple[float]:
+        
+        return params - 2*param_std, params + 2*param_std
+
+    # def find_parameter_range(
+    #         cdf_val: float,
+    #         param_of_interest: int,
+    #         params: NDArray[np.float64],
+    #         args: tuple[NDArray[np.float64], 
+    #                     NDArray[np.float64], 
+    #                     NDArray[np.float64],
+    #                     NDArray[np.float64], 
+    #                     callable],
+    # ) -> tuple[float, float]:
+
+    #     MLL_val = -MLE_result.fun
+    #     LL_ratio_val = LL_ratio_stat(MLL_val, MLL_val)
+        
+    #     param_step = 0.1 * params[param_of_interest]
+
+    #     while LL_ratio_val < cdf_val:
+    #         print(LL_ratio_val)
+    #         params[param_of_interest] += param_step
+    #         LL_new = -lorentzian_log_likelihood(params/args[3], *args)
+    #         LL_ratio_val = LL_ratio_stat(MLL_val, LL_new)
+    #     upper_limit = params[param_of_interest]
+
+    #     while LL_ratio_val < cdf_val:
+    #         params[param_of_interest] -= param_step
+    #         LL_new = lorentzian_log_likelihood(params/args[3], *args)
+    #         LL_ratio_val = LL_ratio_stat(MLL_val, LL_new)
+    #     lower_limit = params[param_of_interest]
+    #     return lower_limit, upper_limit
+
+    def calculate_1D_likelihood_curves(
+        ML_params: NDArray[np.float64],
+        ML_error: NDArray[np.float64],
+        args: tuple[NDArray[np.float64], 
+                    NDArray[np.float64], 
+                    NDArray[np.float64],
+                    NDArray[np.float64], 
+                    callable],
+    ) -> tuple[tuple[NDArray[np.float64], NDArray[np.float64]],
+               tuple[NDArray[np.float64], NDArray[np.float64]]]:
+        
+        # significance_level = 0.05
+        # cdf_val = scipy.stats.chi2.ppf(1 - significance_level, 1)
+        # a1_lims = find_parameter_range(cdf_val, 0, np.array([a1, a2]), args)
+        # a2_lims = find_parameter_range(cdf_val, 1, np.array([a1, a2]), args)
+        lower_lims, upper_lims = find_parameter_range(ML_params, ML_error)
+        
+        param_res = 50
+        a1_range = np.linspace(lower_lims[0], upper_lims[0], param_res)
+        a2_range = np.linspace(lower_lims[1], upper_lims[1], param_res)
+
+        params_a1 = np.array([a1_range, ML_params[1] * np.ones(param_res)]).transpose()
+        params_a2 = np.array([ML_params[0] * np.ones(param_res), a2_range]).transpose()
+
+        LL_a1 = -np.array([lorentzian_log_likelihood(par/args[3], *args) for par in  params_a1])
+        LL_a2 = -np.array([lorentzian_log_likelihood(par/args[3], *args) for par in  params_a2])
+
+        return (a1_range, a2_range), (LL_a1, LL_a2)
+    
+    def get_fit_curve(
+            a_range: NDArray[np.float64], 
+            LL_curve: NDArray[np.float64]
+        ) -> NDArray[np.float64]:
+        
+        ML_val = np.min(likelihood_curves[0])
+        ML_pos = a_range[np.argmin(likelihood_curves[0])]
+        popt, _ = scipy.optimize.curve_fit(
+            lambda x, a: a*(x-ML_pos)**2 + ML_val,
+            a_range,
+            LL_curve,
+        )
+        
+        return popt[0] * (a_range - ML_pos)**2 + ML_val, popt[0]
+
+    def calculate_likelihood_fits(
+            ML_params: NDArray[np.float64],
+            parameter_ranges: tuple[NDArray[np.float64], NDArray[np.float64]],
+            likelihood_curves: tuple[NDArray[np.float64], NDArray[np.float64]],
+            hessian_matrix: NDArray[NDArray[np.float64]],
+    ) -> tuple[NDArray[np.float64], 
+               NDArray[np.float64], 
+               NDArray[np.float64], 
+               NDArray[np.float64], 
+               NDArray[np.float64], 
+               NDArray[np.float64]]:
+
+        a1_range, a2_range = parameter_ranges
+
+        y_a1, hess_val_fit_a1 = get_fit_curve(a1_range, likelihood_curves[0])
+        y_a2, hess_val_fit_a2 = get_fit_curve(a2_range, likelihood_curves[1])
+
+        y_hess_a1 = np.max(likelihood_curves[0]) - 0.5 * hessian_matrix[0,0] * (a1_range - ML_params[0])**2
+        y_hess_a2 = np.max(likelihood_curves[1]) - 0.5 * hessian_matrix[1,1] * (a2_range - ML_params[1])**2
+
+        return hess_val_fit_a1, hess_val_fit_a2, y_a1, y_a2, y_hess_a1, y_hess_a2
+
+    def calculate_likelihood_surface(
+        parameter_ranges: tuple[NDArray[np.float64], NDArray[np.float64]],
+        params_mle: NDArray[np.float64],
+        args: tuple[NDArray[np.float64], 
+        NDArray[np.float64], 
+        NDArray[np.float64],
+        NDArray[np.float64], 
+        callable],
+    ) -> tuple[NDArray[np.float64],
+               NDArray[NDArray[np.float64]]]:
+
+        a1_range, a2_range = parameter_ranges
+        a1_grid, a2_grid = np.meshgrid(a1_range, a2_range)
+        log_likelihood = -np.array([[lorentzian_log_likelihood(np.array([par_1, par_2])/args[3], *args) for par_1 in a1_range] for par_2 in a2_range])
+
+        log_likelihood_norm = log_likelihood - np.max(log_likelihood)
+
+        def ml_quadratic(params, a1, a2):
+            a, b, c = params
+            return -0.5 * (a * (a1 - params_mle[0])**2 \
+                           + b * (a2 - params_mle[1])**2 \
+                            + c * (a1 - params_mle[0]) * (a2 - params_mle[1]))
+
+        a1_flat = a1_grid.ravel()
+        a2_flat = a2_grid.ravel()
+        log_likelihood_flat = log_likelihood_norm.ravel()
+
+        initial_guess = [1, 1e2, 1e4]
+
+        params_opt, _ = curve_fit(
+            lambda t1t2, a, b, c: ml_quadratic([a, b, c], t1t2[0], t1t2[1]),
+            (a1_flat, a2_flat),
+            log_likelihood_flat,
+            p0=initial_guess
+        )
+
+        a, b, c = params_opt
+        hessian = np.array([[a, c/2], [c/2, b]])
+        return hessian, log_likelihood
+
+    MLE_error_autograd, hessian_matrix = get_MLE_error(MLE_result.x, args, param_scaling)
+
+    Results_class.hessian_matrix = hessian_matrix
     Results_class.MLE_params = MLE_result.x * param_scaling
     Results_class.MLE_error_scipy = np.sqrt(np.diag(MLE_result.hess_inv.todense())) * param_scaling
-    Results_class.MLE_error_autograd = MLE_autograd_error * param_scaling
+    Results_class.MLE_error_autograd = MLE_error_autograd
+
+    parameter_ranges, likelihood_curves = calculate_1D_likelihood_curves(
+        Results_class.MLE_params,
+        Results_class.MLE_error_autograd,
+        args
+    )
+
+    (Results_class.a1_fit,
+     Results_class.a2_fit,
+     Results_class.y_a1,
+     Results_class.y_a2,
+     Results_class.y_hess_a1,
+     Results_class.y_hess_a2) = calculate_likelihood_fits(
+        Results_class.MLE_params,
+        parameter_ranges,
+        likelihood_curves,
+        hessian_matrix,
+    )
+
+    Results_class.parameter_ranges = parameter_ranges
+    Results_class.likelihood_curves = likelihood_curves
+    
+    hessian_fit, log_likelihood_surface = calculate_likelihood_surface(
+        parameter_ranges,
+        Results_class.MLE_params,
+        args,
+    )
+
+    Results_class.hessian_fit = hessian_fit
+    Results_class.LL_error_fit = np.sqrt(np.diag(np.linalg.inv(hessian_fit)))
+    Results_class.log_likelihood_surface = log_likelihood_surface
+
+    hes_fit_y1 = np.max(likelihood_curves[0]) \
+        - 0.5 * hessian_fit[0,0] * (parameter_ranges[0] - Results_class.MLE_params[0])**2
+    hes_fit_y2 = np.max(likelihood_curves[1]) \
+        - 0.5 * hessian_fit[1,1] * (parameter_ranges[1] - Results_class.MLE_params[1])**2
+
+    Results_class.llh_surface_cuts = (hes_fit_y1, hes_fit_y2)
 
     return Results_class
 
@@ -1271,14 +1466,20 @@ def plot_study_results(result_dict: Results,
      gamma_list,
      llh_ratio_list, 
      AIC_list, 
-     BIC_list) = [], [], [], [], [], [], [], [], [], [], []
-    
+     BIC_list,
+     parameter_ranges,
+     llh_curves,
+     autograd_llh_curves,
+     fit_llh_curves) = [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
+
     for D_cut in result_dict.keys():
         D_list.append(D_cut)
         a1_list.append(result_dict[D_cut].MLE_params[0])
         a2_list.append(result_dict[D_cut].MLE_params[1])
         a1_err_list.append(result_dict[D_cut].MLE_error_autograd[0])
         a2_err_list.append(result_dict[D_cut].MLE_error_autograd[1])
+        # a1_err_list.append(result_dict[D_cut].LL_error_fit[0])
+        # a2_err_list.append(result_dict[D_cut].LL_error_fit[1])
         n_B_list.append(result_dict[D_cut].x_max_coords)
         gamma_list.append(result_dict[D_cut].fit_gamma)
 
@@ -1288,6 +1489,11 @@ def plot_study_results(result_dict: Results,
         llh_ratio_list.append(result_dict[D_cut].original_stat)
         AIC_list.append(result_dict[D_cut].AICs)
         BIC_list.append(result_dict[D_cut].BICs)
+
+        parameter_ranges.append(result_dict[D_cut].parameter_ranges)
+        llh_curves.append(result_dict[D_cut].likelihood_curves)
+        autograd_llh_curves.append((result_dict[D_cut].y_hess_a1, result_dict[D_cut].y_hess_a2))
+        fit_llh_curves.append(result_dict[D_cut].llh_surface_cuts)
         
     def get_mean_and_std(data_list: NDArray[NDArray[float]], 
                          axis: int=1) -> tuple[NDArray[float]]:
@@ -1510,6 +1716,19 @@ def plot_study_results(result_dict: Results,
                     label='avg over B'
     )
 
+    # fig4, ax4 = plt.subplots(2, 1)
+    # for i in range(len(D_list)):
+
+    #     ax4[0].plot(parameter_ranges[i][0], llh_curves[i][0], label='data')
+    #     ax4[0].plot(parameter_ranges[i][0], autograd_llh_curves[i][0], label='autograd hessian')
+    #     ax4[0].plot(parameter_ranges[i][0], fit_llh_curves[i][0], label='hessian fit')
+
+    #     ax4[1].plot(parameter_ranges[i][1], llh_curves[i][1], label='data')
+    #     ax4[1].plot(parameter_ranges[i][1], autograd_llh_curves[i][1], label='autograd hessian')
+    #     ax4[1].plot(parameter_ranges[i][1], fit_llh_curves[i][1], label='hessian fit')
+    
+    # ax4.legend()
+
     ax1[0].set_ylabel(first_par_name + r' [$(cm·T)^{-2}$]')
     ax1[0].set_xlabel(r'D [$V/nm$]')
 
@@ -1583,3 +1802,29 @@ def generate_black_to_red(num_colors: int) -> list[tuple[float]]:
     colorlist = [(1 - i / (num_colors - 1)) * black + (i / (num_colors - 1)) * red for i in range(num_colors)]
 
     return colorlist
+
+def evaluate_MLE_errors(
+        result_dict: Results, 
+        D_select: float,
+        probe: str, 
+        filling: str,
+        save_figs: bool=False,
+        asymptote_args: Union[bool, tuple[bool]]=False
+) -> None:
+        
+    (D_list, 
+     a1_list, 
+     a2_list, 
+     a1_err_list, 
+     a2_err_list,) = [], [], [], [], [], [], [], [], [], [], []
+    
+    for D_cut in result_dict.keys():
+        D_list.append(D_cut)
+        a1_list.append(result_dict[D_cut].MLE_params[0])
+        a2_list.append(result_dict[D_cut].MLE_params[1])
+        a1_err_list.append(result_dict[D_cut].MLE_error_autograd[0])
+        a2_err_list.append(result_dict[D_cut].MLE_error_autograd[1])
+
+    D_index = np.argmin(np.abs(np.array(D_list) - D_select))
+    
+
