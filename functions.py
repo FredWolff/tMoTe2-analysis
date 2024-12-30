@@ -2,6 +2,9 @@ from typing import Union, Optional
 import qcodes as qc
 from qcodes.dataset import load_by_id
 import matplotlib.pyplot as plt
+from matplotlib.ticker import AutoMinorLocator
+import  matplotlib
+import os
 import numpy as np
 from numpy.typing import NDArray
 from scipy.stats import cauchy as cauchy_sc
@@ -24,6 +27,8 @@ def gauss_base(
 import autograd.numpy as npa
 import scipy
 import inspect
+from datetime import datetime
+import seaborn as sns
 
 input_dict = {'11_06': {'one_third': {'D_lims': (0.11, 0.175),
                                       'n_lims': (-2.1e12, -1.43e12)},
@@ -60,8 +65,8 @@ cbg = 3*8.85e-12/(34e-9)
 ctg = 3*8.85e-12/(35.5e-9)
 D_0 = 0
 
-n_23 = -3.390e12
-n_12 = -2.598e12
+n_23 = -3.349e12
+n_12 = -2.652e12
 
 n_to_12_v = (n_23 - n_12)*6
 v_offset_2 = n_23 / n_to_12_v - 2/3
@@ -425,6 +430,9 @@ def quadratic(x: float, a: float, c: float) -> float:
 def affine(x: float, b: float, c: float) -> float:
     return b*x + c
 
+def constant(x: float, _: float, c: float) -> float:
+    return np.ones_like(x) * c
+
 def lorentzian_log_likelihood(
         params: NDArray[np.float64], 
         x: float, 
@@ -493,7 +501,8 @@ def get_p0(filling: str, Results_class: Results) -> NDArray[np.float64]:
 def get_model(filling: str) -> callable:
 
     if filling == 'one_third' or filling == 'two_thirds':
-        model_function = affine
+        #model_function = affine
+        model_function = constant
 
     elif filling == 'half':
         model_function = quadratic
@@ -1827,4 +1836,653 @@ def evaluate_MLE_errors(
 
     D_index = np.argmin(np.abs(np.array(D_list) - D_select))
     
+##### paper fig functions ######
+
+def add_minor_ticks(
+        fig: matplotlib.figure.Figure,
+) -> None:
+    
+    for ax in fig.axes:
+        if ax.get_xscale() != 'log':
+            ax.xaxis.set_minor_locator(AutoMinorLocator())
+        if ax.get_yscale() != 'log':    
+            ax.yaxis.set_minor_locator(AutoMinorLocator())
+
+# def save_fig(
+#         fig: matplotlib.figure.Figure, 
+#         fig_name: str, 
+#         fig_dir: str, 
+#         fig_fmt: str,
+#         fig_size: tuple[float, float] = [6.4, 4], 
+#         save: bool = True, 
+#         dpi: int = 300,
+#         transparent_png = True,
+#     ):
+#     """This procedure stores the generated matplotlib figure to the specified 
+#     directory with the specified name and format.
+
+#     Parameters
+#     ----------
+#     fig : [type]
+#         Matplotlib figure instance
+#     fig_name : str
+#         File name where the figure is saved
+#     fig_dir : str
+#         Path to the directory where the figure is saved
+#     fig_fmt : str
+#         Format of the figure, the format should be supported by matplotlib 
+#         (additional logic only for pdf and png formats)
+#     fig_size : Tuple[float, float]
+#         Size of the figure in inches, by default [6.4, 4] 
+#     save : bool, optional
+#         If the figure should be saved, by default True. Set it to False if you 
+#         do not want to override already produced figures.
+#     dpi : int, optional
+#         Dots per inch - the density for rasterized format (png), by default 300
+#     transparent_png : bool, optional
+#         If the background should be transparent for png, by default True
+#     """
+#     if not save:
+#         return
+    
+#     fig.set_size_inches(fig_size, forward=False)
+#     fig_fmt = fig_fmt.lower()
+#     fig_dir = os.path.join(fig_dir, fig_fmt)
+#     if not os.path.exists(fig_dir):
+#         os.makedirs(fig_dir)
+#     pth = os.path.join(
+#         fig_dir,
+#         '{}.{}'.format(fig_name, fig_fmt.lower())
+#     )
+#     if fig_fmt == 'pdf':
+#         metadata={
+#             'Creator' : 'Frederik Wolff',
+#             'CreationDate': datetime.today().strftime('%Y-%m-%d')
+#         }
+#         fig.savefig(pth, bbox_inches='tight', metadata=metadata)
+#     elif fig_fmt == 'png':
+#         alpha = 0 if transparent_png else 1
+#         axes = fig.get_axes()
+#         fig.patch.set_alpha(alpha)
+#         for ax in axes:
+#             ax.patch.set_alpha(alpha)
+#         fig.savefig(
+#             pth, 
+#             bbox_inches='tight',
+#             dpi=dpi,
+#         )
+#     else:
+#         try:
+#             fig.savefig(pth, bbox_inches='tight')
+#         except Exception as e:
+#             print("Cannot save figure: {}".format(e)) 
+
+def n_sweep_complete(id):
+
+    def V_to_n_and_D(Vt, Vb, cbg, ctg):
+        nn = np.array([n(Vt_val, Vb_val, cbg, ctg) for Vt_val, Vb_val in zip(Vt, Vb)])
+        DD = np.array([D(Vt_val, Vb_val, cbg, ctg) for Vt_val, Vb_val in zip(Vt, Vb)])
+        return nn, DD
+
+    def R(I_array, V_arrays):
+        R_arrays = V_arrays / I_array
+        return R_arrays
+
+    data = load_by_id(id).get_parameter_data()
+    Vb_list = data['Vb']['Vb']
+    Vt_list = data['Vt']['Vt']
+    I = data['Ixx']['Ixx']
+    I_phase = data['Ixx_phase']['Ixx_phase']
+    Vxx_11_06 = data['Vxx_11_06']['Vxx_11_06']
+    Vxy_11_19 = data['Vxy_11_19']['Vxy_11_19']
+    Vxx_19_20 = data['Vxx_19_20']['Vxx_19_20']
+    Vxx_06_05 = data['Vxx_06_05']['Vxx_06_05']
+    Vxy_06_20 = data['Vxy_06_20']['Vxy_06_20']
+    Vxx_20_24 = data['Vxx_20_24']['Vxx_20_24']
+    Vxy_05_24 = data['Vxy_05_24']['Vxy_05_24']
+
+    R_arrays = R(I, np.array([Vxx_11_06, Vxy_11_19, Vxx_19_20, Vxy_06_20, Vxx_20_24, Vxy_05_24, Vxx_06_05]))
+    nn, DD = V_to_n_and_D(Vt_list, Vb_list, cbg, ctg)
+    return nn, DD, I_phase, R_arrays
+
+def set_ax_xlims(
+        ax: matplotlib.axes.Axes, 
+        x_lims: tuple[float, float]
+) -> None:
+    ax.set_xlim(x_lims[0], x_lims[1])
+
+def create_fig1_ax23(
+        ax2: matplotlib.axes.Axes,
+        ax3: matplotlib.axes.Axes,
+        cax2: matplotlib.axes.Axes,
+        cax3: matplotlib.axes.Axes,
+        fig1_gg_map: Data,
+        xx_cmap: matplotlib.colors.Colormap,
+        xy_cmap: matplotlib.colors.Colormap,
+        corr_vec: list[float],
+) -> None:
+
+    nn_uncorr, DD_uncorr = fig1_gg_map.nn, fig1_gg_map.DD
+    Rxx_200 = fig1_gg_map.Rxx_11_06_sym_200 / R_Q
+    Rxy_200 = fig1_gg_map.Rxy_11_19_sym_200 / R_Q
+
+    nn = nn_uncorr + corr_vec[0]
+    DD = DD_uncorr - corr_vec[1]
+    vv = nn / np.abs(n_to_12_v)
+
+    xx_cmap.set_bad(color='black')
+    xy_cmap.set_bad(color='black')
+
+    xx_z_lims = (0.01, 50)
+    xy_z_lims = (-2, 2)
+    x_lims = (-5.1e12, 0.05e12)
+    v_lims = (-5.1e12 / np.abs(n_to_12_v), 
+              0.05e12 / np.abs(n_to_12_v))
+    # x_lims = (-4e12, 0.05e12)
+
+    mesh1 = ax2.pcolormesh(
+        nn, 
+        DD, 
+        Rxx_200, 
+        norm=matplotlib.colors.LogNorm(
+            vmin=xx_z_lims[0], 
+            vmax=xx_z_lims[1]
+        ),
+        cmap=xx_cmap,
+    )
+    mesh2 = ax3.pcolormesh(
+        nn, 
+        DD, 
+        -Rxy_200, 
+        vmin=xy_z_lims[0], 
+        vmax=xy_z_lims[1],
+        cmap=xy_cmap,
+    )
+
+    ax2_top = ax2.twiny()
+    ax2_top.pcolormesh(
+        vv,
+        DD, 
+        Rxx_200, 
+        norm=matplotlib.colors.LogNorm(
+            vmin=xx_z_lims[0], 
+            vmax=xx_z_lims[1]
+        ),
+        cmap=xx_cmap,
+    )
+
+    ax3_top = ax3.twiny()
+    ax3_top.pcolormesh(
+        vv,
+        DD, 
+        -Rxy_200, 
+        vmin=xy_z_lims[0], 
+        vmax=xy_z_lims[1],
+        cmap=xy_cmap,
+    )
+
+    cbar1 = plt.colorbar(mesh1, cax=cax2)
+    cbar2 = plt.colorbar(mesh2, cax=cax3)
+    cbar1.set_label(r'$R_{xx}$ [h/e$^2$]')
+    cbar2.set_label(r'$R_{xy}$ [h/e$^2$]')
+    ax2.set_xlabel(r'$n$ [$cm^{-2}$]')
+    ax3.set_xlabel(r'$n$ [$cm^{-2}$]')
+    ax2.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
+    ax3.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
+    ax2_top.set_xlabel(r'$\nu$')
+    ax3_top.set_xlabel(r'$\nu$')
+
+    # ax2.tick_params(labelbottom=False)
+    # ax3_top.tick_params(labeltop=False)
+
+    [set_ax_xlims(ax, x_lims) for ax in [ax2, ax3]]
+    [set_ax_xlims(ax, v_lims) for ax in [ax2_top, ax3_top]]
+
+def create_fig1_ax4(
+    ax4_xy: matplotlib.axes.Axes,
+    fig1_g_scan: Data,
+    R_color_list: list[str],
+    corr_vec: list[float],
+) -> None:
+    
+    nn = fig1_g_scan.nn + corr_vec[0]
+    vv = nn / np.abs(n_to_12_v)
+    Rxy_11_19 = -fig1_g_scan.Rxy_11_19 / R_Q
+    Rxx_11_06 = fig1_g_scan.Rxx_11_06 / R_Q
+
+    n_lims = np.array([nn.min(), nn.max()])
+    v_lims = n_lims / np.abs(n_to_12_v)
+    Rxx_lims = np.array([.95*Rxx_11_06.min(), 1.05*Rxx_11_06.max()])
+    Rxy_lims = np.array([.95*Rxy_11_19.min(), 1.05*Rxy_11_19.max()])
+
+    Rxx_color, Rxy_color = R_color_list
+
+    ax4_xy.plot(nn, -Rxy_11_19, color=Rxy_color)
+    ax4_xy.set_xlabel(r'$n$ [$cm^{-2}$]')
+    ax4_xy.set_ylabel(r'$R_{xy}$ [h/e$^2$]')
+    ax4_xy.yaxis.label.set_color(Rxy_color)
+    ax4_xy.tick_params(axis='y', colors=Rxy_color)
+
+    ax4_top = ax4_xy.twiny()
+    ax4_top.plot(vv, Rxy_11_19, color=Rxy_color)   
+    ax4_top.set_xlabel(r'$\nu$')
+
+    ax4_xx = ax4_xy.twinx()
+    ax4_xx.plot(nn, Rxx_11_06, color=Rxx_color)
+    ax4_xx.set_ylabel(r'$R_{xx}$ [h/e$^2$]')
+    ax4_xx.yaxis.label.set_color(Rxx_color)
+    ax4_xx.tick_params(axis='y', colors=Rxx_color)
+
+    ax4_xy.hlines(1, -5e12, 0, color='black', linestyle='--')
+
+    [set_ax_xlims(ax, n_lims) for ax in [ax4_xy, ax4_xx]]
+    [set_ax_xlims(ax, v_lims) for ax in [ax4_top]]
+    ax4_xx.set_ylim(Rxx_lims)
+    ax4_xy.set_ylim(Rxy_lims)
+
+def create_fig2_ax12(
+        ax1: matplotlib.axes.Axes,
+        ax2: matplotlib.axes.Axes,
+        cax1: matplotlib.axes.Axes,
+        fig2_gg_map: Data,
+        cmap: matplotlib.colors.Colormap,
+        corr_vec: list[float],
+) -> None:
+    
+    nn_uncorr, DD_uncorr = fig2_gg_map.nn, fig2_gg_map.DD
+    R_200 = fig2_gg_map.Rxx_11_06_sym_200 / R_Q
+    R_2 = fig2_gg_map.Rxx_11_06_sym_2 / R_Q
+
+    nn = nn_uncorr + corr_vec[0]
+    DD = DD_uncorr - corr_vec[1]
+
+    cmap.set_bad(color='black')
+
+    z_lims = (0.01, 200)
+    # x_lims = (-5.1e12, 0.05e12)
+    x_lims = (-4e12, 0.05e12)
+
+    mesh1 = ax1.pcolormesh(
+        nn, 
+        DD, 
+        R_200, 
+        norm=matplotlib.colors.LogNorm(vmin=z_lims[0], vmax=z_lims[1]),
+        cmap=cmap,
+    )
+    mesh2 = ax2.pcolormesh(
+        nn, 
+        DD, 
+        R_2, 
+        norm=matplotlib.colors.LogNorm(vmin=z_lims[0], vmax=z_lims[1]),
+        cmap=cmap,
+    )
+
+    # cbar1 = plt.colorbar(mesh1)
+    cbar2 = plt.colorbar(mesh2, cax=cax1)
+    # cbar1.set_label(r'$R_{xx}$ [h/e$^2$]')
+    cbar2.set_label(r'$R_{xx}$ [h/e$^2$]')
+    ax1.set_xlabel(r'$n$ [$cm^{-2}$]')
+    ax2.set_xlabel(r'$n$ [$cm^{-2}$]')
+    ax1.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
+    # ax2.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
+
+    ax2.tick_params(labelleft=False)
+    tick_labels = ax2.get_xticks()
+    tick_labels = list(tick_labels)
+    ax2.set_xticks(tick_labels[2:])
+
+    [set_ax_xlims(ax, x_lims) for ax in [ax1, ax2]]
+
+def create_fig2_ax3(
+        ax3: matplotlib.axes.Axes,
+        cax3: matplotlib.axes.Axes,
+        B_n_data: Data,
+        cmap: matplotlib.colors.Colormap,
+        corr_vec: list[float],
+) -> None:
+    
+    nn = B_n_data.nn + corr_vec[0]
+    DD = B_n_data.DD - corr_vec[1]
+    BB = B_n_data.Bperp
+    R_array = B_n_data.Rxx_11_06 / R_Q
+
+    cmap.set_bad(color='black')
+
+    z_lims = (0.01, 200)
+
+    mesh = ax3.pcolormesh(
+        nn,
+        BB,
+        R_array,
+        norm=matplotlib.colors.LogNorm(vmin=z_lims[0], vmax=z_lims[1]),
+        cmap=cmap,
+    )
+
+    cbar = plt.colorbar(mesh, cax=cax3)
+    cbar.set_label(r'$R_{xx}$ [h/e$^2$]')
+    ax3.set_xlabel(r'$n$ [$cm^{-2}$]')
+    ax3.set_ylabel(r'$B$ [$T$]')
+
+def create_fig2_ax4(
+        ax4_1: matplotlib.axes.Axes,
+        ax4_2: matplotlib.axes.Axes,
+        B_n_data: Data,
+        filling_colors: dict[str, str],
+        corr_vec: list[float],
+) -> None:
+    
+    nn = B_n_data.nn + corr_vec[0]
+    DD = B_n_data.DD - corr_vec[1]
+    BB = B_n_data.Bperp
+    R_array = B_n_data.Rxx_11_06 / R_Q
+
+    one_third_x_range = (-1.95e12, -1e12)
+    two_thirds_x_range = (-3.1e12, -2.5e12)
+
+    # ylims = [np.log10(lim) for lim in (0.01, 1e3)]
+    ylims = (0.01, 1e3)
+
+    skip = 4
+    for i in range(0, len(BB), skip):
+        j = len(BB) - i - 1
+        # print(j)
+        # ax4_1.plot(
+        #     nn[i], 
+        #     np.log10(R_array[i]) - j * .04, 
+        #     color=filling_colors['two_thirds'], 
+        # )
+        ax4_1.plot(
+            nn[i], 
+            R_array[i]*10**(-.04 * j), 
+            color=filling_colors['two_thirds'], 
+        )
+        # ax4_1.plot(
+        #     nn[j], 
+        #     np.log10(R_array[j]) + i * .05, 
+        #     color=filling_colors['two_thirds'],
+        # )
+        ax4_2.plot(
+            nn[i], 
+            R_array[i], 
+            color=filling_colors['one_third'],
+        )
+
+    ax4_2.tick_params(labelleft=False)
+    ax4_1.set_xlabel(r'$n$ [$cm^{-2}$]')
+    ax4_2.set_xlabel(r'$n$ [$cm^{-2}$]')
+    ax4_1.set_ylabel(r'$R_{xx}$ [h/e$^2$]')
+    ax4_1.set_ylim(ylims)
+    ax4_2.set_ylim(ylims)
+    ax4_1.set_yscale('log')
+
+    # y_ticks = [10 ** i for i in range(-4, 6)]
+    # ax4_1.set_yticks(y_ticks)
+
+    # y_minor_ticks = [10 ** (i + j / 10) for i in range(-4, 6) for j in range(1, 10)]
+    # ax4_1.set_yticks(y_minor_ticks, minor=True)
+
+    # y_labels = [f"$10^{int(np.log10(tick))}$" for tick in y_ticks]
+    # ax4_1.set_yticklabels(y_labels)
+
+    set_ax_xlims(ax4_1, two_thirds_x_range)
+    set_ax_xlims(ax4_2, one_third_x_range)    
+
+def create_fig4_ax1(
+    ax1: matplotlib.axes.Axes,
+    fitted_B_one_third: dict[any],
+    fitted_B_half: dict[any],
+    fitted_B_two_thirds: dict[any],
+    color_list: list[str],
+    shape_list: list[str],
+) -> None:
+
+    a_d = fitted_B_one_third
+    b_d = fitted_B_half
+    c_d = fitted_B_two_thirds
+    
+    ax1.errorbar(
+        a_d['fit_array'] - a_d['y_0'], 
+        a_d['B_array'], 
+        fmt=shape_list[0],
+        xerr=a_d['gamma_array'],
+        label='1/3', 
+        color=color_list[0],
+        capthick=2,
+        capsize=8,
+        elinewidth=1.5,
+    )
+
+    ax1.errorbar(
+        b_d['fit_array'] - b_d['y_0'], 
+        b_d['B_array'], 
+        fmt=shape_list[1],
+        xerr=b_d['gamma_array'],
+        label='1/2', 
+        color=color_list[1],
+        capthick=2,
+        capsize=8,
+        elinewidth=1.5,
+    )
+
+    ax1.errorbar(
+        c_d['fit_array'] - c_d['y_0'], 
+        c_d['B_array'], 
+        fmt=shape_list[2],
+        xerr=c_d['gamma_array'],
+        label='2/3', 
+        color=color_list[2],
+        capthick=2,
+        capsize=8,
+        elinewidth=1.5,
+    )
+    
+    ax1.legend(loc='best')
+    ax1.set_xlabel(r'$\delta n$ [$cm^{-2}]$')
+    ax1.set_ylabel(r'$B$ [$T$]')
+    ax1.set_ylim(0, 4.1)
+
+def create_fig4_ax2(
+    ax2_1: matplotlib.axes.Axes,
+    ax2_2: matplotlib.axes.Axes,
+    D_dependence_data: dict[any],
+) -> None:
+    
+    marker = 'o'
+    D_list = D_dependence_data['D_list']
+    a1_list = D_dependence_data['a1']
+    a2_list = D_dependence_data['a2']
+    a1_err_list = D_dependence_data['a1_err']
+    a2_err_list = D_dependence_data['a2_err']
+    n_post_correction = D_dependence_data['n_post_correction']
+    color_list = D_dependence_data['color_list']
+
+    for i in range(len(D_list)):
+
+        ax2_1.errorbar(D_list[i], 
+                        a1_list[i],
+                        marker=marker, 
+                        yerr=a1_err_list[i], 
+                        color=color_list[i]
+        )
+
+        ax2_2.errorbar(D_list[i], 
+                        a2_list[i] + n_post_correction, 
+                        marker=marker, 
+                        yerr=a2_err_list[i], 
+                        color=color_list[i]
+        )
+
+    ax2_1.set_xlim(0.12, 0.25)
+    ax2_2.set_xlim(0.12, 0.25)
+    ax2_1.set_ylabel(r'$a_1$ [$(cm·T)^{-2}$]')
+    ax2_2.set_ylabel(r'$a_2$ [$cm^{-2}$]')
+    ax2_1.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
+    ax2_2.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
+
+def create_fig4_ax2_sns(
+        ax2_1: matplotlib.axes.Axes,
+        ax2_2: matplotlib.axes.Axes,
+        D_dependence_data: dict[any],
+        filling_color: str,
+) -> None:
+    
+    D_list = D_dependence_data['D_list']
+    a1_list = np.array(D_dependence_data['a1'])
+    a2_list = np.array(D_dependence_data['a2'])
+    a1_err_list = np.array(D_dependence_data['a1_err'])
+    a2_err_list = np.array(D_dependence_data['a2_err'])
+    n_post_correction = D_dependence_data['n_post_correction']
+    color_list = generate_con_color(filling_color, len(D_list)-1)
+
+    alpha = 0.5
+
+    for i in range(len(D_list)-1):
+
+        edgecolor = np.append(color_list[i], alpha)
+
+        ax2_1.plot(
+            D_list[i:i+2],
+            a1_list[i:i+2],
+            color=color_list[i],
+            linewidth=2.5,
+        )
+        ax2_1.fill_between(
+            D_list[i:i+2],
+            a1_list[i:i+2] - a1_err_list[i:i+2],
+            a1_list[i:i+2] + a1_err_list[i:i+2],
+            alpha=alpha,
+            color=color_list[i],
+            edgecolor='none',
+        )
+
+        ax2_2.plot(
+            D_list[i:i+2],
+            a2_list[i:i+2] + n_post_correction,
+            color=color_list[i],
+            linewidth=2.5,
+        )
+        ax2_2.fill_between(
+            D_list[i:i+2],
+            a2_list[i:i+2] + n_post_correction - a2_err_list[i:i+2],
+            a2_list[i:i+2] + n_post_correction + a2_err_list[i:i+2],
+            alpha=0.4,
+            color=color_list[i],
+            edgecolor='none',
+            # linewidth=0,
+        )
+
+    ax2_1.set_xlim(0.12, 0.245)
+    ax2_2.set_xlim(0.12, 0.245)
+    ax2_1.set_ylabel(r'$a_1$ [$(cm·T)^{-2}$]')
+    ax2_2.set_ylabel(r'$a_2$ [$cm^{-2}$]')
+    ax2_1.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
+    ax2_2.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
+
+def create_fig4_ax3(
+        ax3: matplotlib.axes.Axes,
+        D_dependence_data: dict[any],
+        filling_color: str,
+) -> None:
+    
+    D_list = D_dependence_data['D_list']
+    model_list = D_dependence_data['model_list']
+    B_list_gen = D_dependence_data['B_list_gen']
+    #color_list = D_dependence_data['color_list']
+    color_list = generate_con_color(filling_color, len(D_list))
+    
+    line_handles = []
+
+    for i in range(len(D_list)):
+
+        line, = ax3.plot(
+            model_list[i], 
+            B_list_gen, 
+            color=color_list[i]
+        )
+        line_handles.append(line)
+
+    ax3.legend(
+        handles=[line_handles[0], line_handles[-1]], 
+        labels=[
+            f'$D/\epsilon_{0}$ = {D_list[0]:.3f}', 
+            f'$D/\epsilon_{0}$ = {D_list[-1]:.3f}'
+        ]
+    )
+
+    ax3.set_ylim(0, 4)
+    ax3.set_ylabel(r'$B$ [$T$]')
+    ax3.set_xlabel(r'$n$ [$cm^{-2}$]')
+
+def create_fig4_ax4(
+        ax4: matplotlib.axes.Axes,
+        probe_dependence_data: dict[any],
+        color_list: list[str],
+        linestyle_list: list[str],
+) -> None:
+
+    D_array_20_06 = probe_dependence_data['D_array_20_06']
+    R_array_20_06 = probe_dependence_data['R_array_20_06']
+    D_array_06_11 = probe_dependence_data['D_array_06_11']
+    R_array_06_11 = probe_dependence_data['R_array_06_11']
+    D_array_19_20 = probe_dependence_data['D_array_19_20']
+    R_array_19_20 = probe_dependence_data['R_array_19_20']
+    uni_D_corr = probe_dependence_data['D_correction']
+
+    ax4.plot(
+        D_array_06_11 - uni_D_corr, 
+        R_array_06_11/R_Q, 
+        label='06-11',
+        color=color_list[1],
+        linestyle=linestyle_list[1],
+        linewidth=2,
+    )
+    ax4.plot(
+        D_array_19_20 - uni_D_corr, 
+        R_array_19_20/R_Q, 
+        label='19-20',
+        color=color_list[2],
+        linestyle=linestyle_list[2],
+        linewidth=2,
+    )
+    ax4.plot(
+        D_array_20_06 - uni_D_corr, 
+        R_array_20_06/R_Q, 
+        label='20-06',
+        color=color_list[0],
+        linestyle=linestyle_list[0],
+        linewidth=2,
+    )
+
+    # ax4.hlines(0, -0.15, 0.15, color='black')
+
+    # ax4.legend()
+    ax4.set_ylabel(r'$R_{xx}$ [$h/e^2]$')
+    ax4.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
+    ax4.set_xlim(-0.13, 0.13)
+    ax4.set_ylim(0, 10.5)
+
+def hex_to_rgb(hex_str):
+    hex_str = hex_str.lstrip('#')
+    r = int(hex_str[0:2], 16)
+    g = int(hex_str[2:4], 16)
+    b = int(hex_str[4:6], 16)
+    return np.array([r, g, b])
+
+def generate_con_color(
+        input_color_hex: str,
+        num_colors: int,
+) -> NDArray[tuple[np.float64]]:
+    
+    if num_colors < 2:
+        raise ValueError("List length must be at least 2.")
+
+    input_rgb = hex_to_rgb(input_color_hex) / 255
+    teal = '#008080'
+    # asymptote_rgb = input_rgb / 4
+    asymptote_rgb = hex_to_rgb(teal) / 255
+
+    colorlist = [(1 - i / (num_colors - 1)) * asymptote_rgb 
+                + (i / (num_colors - 1)) * input_rgb for i in range(num_colors)]
+
+    return np.flip(colorlist, axis=0)
 

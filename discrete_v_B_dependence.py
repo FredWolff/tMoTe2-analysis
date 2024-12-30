@@ -51,10 +51,16 @@ import scipy
 import sys
 sys.path.append('/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis')
 from functions import *
+import pickle
+
+plot_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis/'
+base_path = '/'
+if os.getcwd() != base_path:
+    os.chdir(base_path)
 
 qc.config['user']['mainfolder'] = '/Volumes/STORE N GO/TD5'
 
-database = 'Database_CD2_3'
+database = 'Database_CD2_'
 qc.config['core']['db_location'] = 'Volumes/STORE N GO/TD5/database/' + database + '.db'
 qc.initialise_database()
 qc.new_experiment("2023-10-10_tMoTe2.TD5-CD2", sample_name="TD5")
@@ -69,9 +75,9 @@ filling = 'half'
 # filling = 'two_thirds'
 D_lims, n_lims = input_dict[probe][filling].values()
 
-D_lims = (0.13, 0.131)
+# D_lims = (0.13, 0.131)
 
-save_figs = True#False
+save_figs = False
 run_bootstrap = False
 asymptote_args = (False, False)#(True, True) # (show_asymptote_plot, allow_offset)
 
@@ -94,6 +100,51 @@ results = run_study(data_class,
 #                    filling=filling,
 #                    save_figs=save_figs,
 #                    asymptote_args=asymptote_args)
+
+#%% extract data for paper plot - 1/2 coefficients D-dependence
+
+plot_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis/'
+if os.getcwd() != plot_path:
+    os.chdir(plot_path)
+
+n_post_correction = get_n_correction(probe) - n_correction
+model_function = get_model(filling)
+
+(D_list, 
+a1_list, 
+a2_list, 
+a1_err_list, 
+a2_err_list, 
+model_list,
+) = [], [], [], [], [], []
+
+B_list_gen = np.linspace(0, results[next(iter(results.keys()))].B_set_list[-1])
+
+for D_cut in results.keys():
+    D_list.append(D_cut)
+    a1_list.append(results[D_cut].MLE_params[0])
+    a2_list.append(results[D_cut].MLE_params[1])
+    a1_err_list.append(results[D_cut].MLE_error_autograd[0])
+    a2_err_list.append(results[D_cut].MLE_error_autograd[1])
+    model_list.append(model_function(B_list_gen, *results[D_cut].MLE_params) + n_post_correction)
+
+color_list = generate_black_to_red(len(results.keys()))
+
+plot_data = {
+    'D_list': D_list, 
+    'a1': a1_list, 
+    'a2': a2_list, 
+    'a1_err': a1_err_list, 
+    'a2_err': a2_err_list,
+    'B_list_gen': B_list_gen,
+    'model_list': model_list,
+    'color_list': color_list,
+    'n_post_correction': n_post_correction,
+}
+
+with open('D_dependence_paper_plot.pickle', 'wb') as f:
+    pickle.dump(plot_data, f)
+
 #%% 
 plt.plot(results[0.13].parameter_ranges[0], results[0.13].likelihood_curves[0], label='data')
 plt.plot(results[0.13].parameter_ranges[0], results[0.13].y_hess_a1, label='hessian')
@@ -368,16 +419,308 @@ for filling, result_dict in zip(filling_list, results_list):
     )
 
     xs = np.linspace(0, 4, 301)
+    model_list = model_function(xs, *result_dict[D_cut].MLE_params)
     line_2 = ax.plot(xs, 
-                    model_function(xs, *result_dict[D_cut].MLE_params) + n_post_correction - y_0, 
+                    model_list + n_post_correction - y_0, 
                     label=filling_dict[filling], 
                     color=color_dict[filling]
     )
     line_handle_dict[filling] = line_1
+
+    #extract data for paper plot - filling comparison
+
+    plot_data = {
+        'B_array': B_array[succesful_fits],
+        'fit_array': fit_array[succesful_fits] + n_post_correction,
+        'y_0': y_0,
+        'gamma_array': gamma_array[succesful_fits],
+        'model_function': model_function,
+        'n_post_correction': n_post_correction,
+    }
+
+    with open(f'B_dependence_{filling}_paper_plot.pickle', 'wb') as f:
+        pickle.dump(plot_data, f)
 
 ax.set_xlabel('B [T]')
 ax.set_ylabel(r'$\delta$n [$cm^{-2}$]')
 ax.minorticks_on()
 ax.legend(handles=line_handle_dict.values())
 
+# %%
+def scaling_func(
+        BD: tuple[float], 
+        A: float,
+        B_c: float, 
+        alpha: float,
+        # beta: float,
+) -> float:
+    
+    B, D = BD
+    B_c = .85
+    return A * (B - B_c) * D**(-alpha)
+
+def scaled_coords(
+        BD: tuple[float], 
+        alpha: float
+) -> list[NDArray[np.float64]]:
+    
+    B_arr, D_arr = BD
+    B_arr = np.array(B_arr).flatten()
+    t_list = []
+    for D_val in D_arr:
+        t_list.append((np.array(B_arr) - B_c) * D_val**(-alpha))
+    
+    return np.array(t_list).flatten()
+    
+def fit_scaled_func(
+        t_list,
+        fit_loc_list,
+) -> tuple[np.float64, np.float64]:
+
+    popt, pcov = curve_fit(
+        lambda x, a, c: a*x**2 + c,
+        t_list,
+        fit_loc_list,
+        p0=[-1e10, -2.1e12],
+    )
+
+    return popt, pcov
+
+def residuals(
+        alpha,
+        B_list,
+        D_list,
+        fit_loc_list,
+):
+    
+    BD = (B_list, D_list)
+    coords = scaled_coords(BD, alpha)
+    fit_loc_arr = np.array(fit_loc_list).flatten()
+    popt, pcov = fit_scaled_func(coords, fit_loc_arr)
+    residuals = np.abs(fit_loc_arr - (popt[0]*coords**2 + popt[1]))
+
+    return residuals.sum()
+
+def scaling_fit(
+    n_data: NDArray[np.float64],
+    B_arr: NDArray[np.float64],
+    D_arr: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+
+    n_log = np.log(n_data)
+    D_mesh, B_mesh = np.meshgrid(D_arr, B_arr)
+
+    popt, pcov = scipy.optimize.curve_fit(
+        scaling_func, 
+        (B_mesh.flatten(), D_mesh.flatten()), 
+        n_data.flatten(),
+        p0=[-2.1e12, 1],
+    )
+
+    return popt, pcov
+
+(D_list, 
+B_list,
+fit_loc_list,
+gamma_list
+) = [], [], [], []
+
+# B_list_gen = np.linspace(0, results[next(iter(results.keys()))].B_set_list[-1])
+
+for D_cut in results.keys():
+    D_list.append(D_cut)
+    B_list.append(results[D_cut].B_set_list)
+    fit_loc_list.append(results[D_cut].x_max_coords)
+    gamma_list.append(results[D_cut].fit_gamma)
+
+alpha = 1
+res = scipy.optimize.minimize(
+    residuals, 
+    1, 
+    args=(B_list[0], D_list, fit_loc_list), 
+    method='L-BFGS-B'
+)
+alpha_err = np.sqrt(np.diag(res.hess_inv.todense()))[0]
+
+# %%
+# popt, pcov = scaling_fit(np.abs(fit_loc_list), B_list[0], D_list)
+
+fig = plt.figure()
+ax = fig.add_subplot(111)
+
+B_c = .85
+
+def gen_t_array(B_arr, D_val, popt):
+    # return np.abs(B_arr - popt[1]) * D_val**(-popt[2])
+    return (np.array(B_arr) - B_c) * D_val**(-popt[1])
+
+# popt[1] = .85
+popt[1] = 5.466e-01
+t_list = []
+for i in range(len(D_list)):
+    t_it = gen_t_array(B_list[0], D_list[i], popt)
+    t_list.append(t_it)
+
+t_arr = np.array(t_list).flatten()
+fit_loc_arr = np.array(fit_loc_list).flatten()
+
+t_x = (t_arr > 0)
+popt1, pcov1 = fit_scaled_func(t_arr[t_x], fit_loc_arr[t_x])
+
+ax.plot(
+    t_arr[t_x], 
+    fit_loc_arr[t_x]/popt1[1], 
+    'o')
+
+t_arr_pos = t_arr[t_x]
+t_arr_pos.sort()
+ax.plot(
+    t_arr_pos, 
+    (popt1[0]*t_arr_pos**2 + popt1[1])/popt1[1], 
+    label=r'$\alpha$ = ' + str(popt[1]) + r' $\pm$ ' + f'{1e8*alpha_err:.4f}e-8'
+)
+
+r_val = R_bar_squared(fit_loc_arr[t_x], popt1[0]*t_arr_pos**2 + popt1[1], popt1)
+
+# ax.set_yscale('log')
+ax.legend()
+ax.set_xlabel(r'$(B-B_c)$$ \cdot D^{-\alpha}$')
+ax.set_ylabel(r'$n(B, D) / n(B_c)$')
+plt.title(r'red R$^2$ = ' + f'{r_val:.2f}')
+#%% fig 2 data extract
+
+path = 'Volumes/STORE N GO/TD5/database/'
+
+database = 'Database_CD2_3'
+qc.config['core']['db_location'] = path + database + '.db'
+qc.initialise_database()
+
+fig2_gg_map = Data()
+
+# B=0.2T map
+
+id1 = 223
+dim = [141, 121]
+Vb_list, Vt_list, nn, DD, [Rxx_11_06_1, Rxx_19_20_1, Rxx_20_24_1, Rxx_06_05_1, Rxy_11_19_1, Rxy_06_20_1, Rxy_05_24_1] = V_top_bottom_multiprobe(id1, dim)
+id2 = 549
+dim = [141, 121]
+Vb_list, Vt_list, nn, DD, [Rxx_11_06_2, Rxx_19_20_2, Rxx_20_24_2, Rxx_06_05_2, Rxy_11_19_2, Rxy_06_20_2, Rxy_05_24_2] = V_top_bottom_multiprobe(id2, dim)
+fig2_gg_map.Rxx_19_20_sym_200= (Rxx_19_20_1+Rxx_19_20_2)/2
+fig2_gg_map.Rxx_11_06_sym_200= (Rxx_11_06_1+Rxx_11_06_2)/2
+fig2_gg_map.Rxx_20_24_sym_200= (Rxx_20_24_1+Rxx_20_24_2)/2
+fig2_gg_map.Rxx_06_05_sym_200= (Rxx_06_05_1+Rxx_06_05_2)/2
+fig2_gg_map.Rxy_11_19_sym_200= (Rxy_11_19_1-Rxy_11_19_2)/2
+fig2_gg_map.Rxy_06_20_sym_200= (Rxy_06_20_1-Rxy_06_20_2)/2
+fig2_gg_map.Rxy_05_24_sym_200= (Rxy_05_24_1-Rxy_05_24_2)/2
+
+# B=2T map
+
+id1 = 232
+dim = [141, 121]
+Vb_list, Vt_list, nn, DD, [Rxx_11_06_1, Rxx_19_20_1, Rxx_20_24_1, Rxx_06_05_1, Rxy_11_19_1, Rxy_06_20_1, Rxy_05_24_1] = V_top_bottom_multiprobe(id1, dim)
+id2 = 541
+dim = [141, 121]
+Vb_list, Vt_list, nn, DD, [Rxx_11_06_2, Rxx_19_20_2, Rxx_20_24_2, Rxx_06_05_2, Rxy_11_19_2, Rxy_06_20_2, Rxy_05_24_2] = V_top_bottom_multiprobe(id2, dim)
+fig2_gg_map.Rxx_19_20_sym_2 = (Rxx_19_20_1+Rxx_19_20_2)/2
+fig2_gg_map.Rxx_11_06_sym_2 = (Rxx_11_06_1+Rxx_11_06_2)/2
+fig2_gg_map.Rxx_20_24_sym_2 = (Rxx_20_24_1+Rxx_20_24_2)/2
+fig2_gg_map.Rxx_06_05_sym_2 = (Rxx_06_05_1+Rxx_06_05_2)/2
+fig2_gg_map.Rxy_11_19_sym_2 = (Rxy_11_19_1-Rxy_11_19_2)/2
+fig2_gg_map.Rxy_06_20_sym_2 = (Rxy_06_20_1-Rxy_06_20_2)/2
+fig2_gg_map.Rxy_05_24_sym_2 = (Rxy_05_24_1-Rxy_05_24_2)/2
+
+fig2_gg_map.Vb_list = Vb_list
+fig2_gg_map.Vt_list = Vt_list
+fig2_gg_map.nn = nn
+fig2_gg_map.DD = DD
+
+if os.getcwd() != plot_path:
+    os.chdir(plot_path)
+
+with open('fig2_gg_map.pickle', 'wb') as f:
+    pickle.dump(fig2_gg_map, f)
+
+##########
+
+# path = 'Volumes/STORE N GO/TD5/database/'
+
+# database = 'Database_CD2_'
+# qc.config['core']['db_location'] = path + database + '.db'
+# qc.initialise_database()
+
+# n vs. B map
+
+
+# %% fig 1 data extract
+    
+if os.getcwd() != base_path:
+    os.chdir(base_path)
+
+path = 'Volumes/STORE N GO/TD5/database/'
+
+database = 'Database_CD2_3'
+qc.config['core']['db_location'] = path + database + '.db'
+qc.initialise_database()
+
+fig1_gg_map = Data()
+
+# B=0.02T map
+
+id1 = 532
+dim = [121, 91]
+Vb_list, Vt_list, nn, DD, [Rxx_11_06_1, Rxx_19_20_1, Rxx_20_24_1, Rxx_06_05_1, Rxy_11_19_1, Rxy_06_20_1, Rxy_05_24_1] = V_top_bottom_multiprobe(id1, dim)
+id2 = 535
+dim = [121, 91]
+Vb_list, Vt_list, nn, DD, [Rxx_11_06_2, Rxx_19_20_2, Rxx_20_24_2, Rxx_06_05_2, Rxy_11_19_2, Rxy_06_20_2, Rxy_05_24_2] = V_top_bottom_multiprobe(id2, dim)
+fig1_gg_map.Rxx_19_20_sym_200= (Rxx_19_20_1+Rxx_19_20_2)/2
+fig1_gg_map.Rxx_11_06_sym_200= (Rxx_11_06_1+Rxx_11_06_2)/2
+fig1_gg_map.Rxx_20_24_sym_200= (Rxx_20_24_1+Rxx_20_24_2)/2
+fig1_gg_map.Rxx_06_05_sym_200= (Rxx_06_05_1+Rxx_06_05_2)/2
+fig1_gg_map.Rxy_11_19_sym_200= (Rxy_11_19_1-Rxy_11_19_2)/2
+fig1_gg_map.Rxy_06_20_sym_200= (Rxy_06_20_1-Rxy_06_20_2)/2
+fig1_gg_map.Rxy_05_24_sym_200= (Rxy_05_24_1-Rxy_05_24_2)/2
+
+fig1_gg_map.Vb_list = Vb_list
+fig1_gg_map.Vt_list = Vt_list
+fig1_gg_map.nn = nn
+fig1_gg_map.DD = DD
+
+# 1D scans
+
+fig1_g_scan = Data()
+
+ids = [372, 368]
+Rxy_arrays = []
+Rxx_arrays = []
+for i in range(len(ids)):
+    nn, DD, I_phase, [Rxx_11_06, Rxy_11_19, Rxx_19_20, Rxy_06_20, Rxx_20_24, Rxy_05_24, Rxx_06_05] = n_sweep_complete(ids[i])
+    if i == 0:
+        Rxx_arrays = np.array([Rxx_11_06, Rxx_19_20, Rxx_20_24, Rxx_06_05])
+        Rxy_arrays = np.array([Rxy_11_19, Rxy_06_20, Rxy_05_24])
+    else:
+        Rxx_arrays += np.array([Rxx_11_06, Rxx_19_20, Rxx_20_24, Rxx_06_05])
+        Rxy_arrays -= np.array([Rxy_11_19, Rxy_06_20, Rxy_05_24])
+
+[Rxx_11_06, Rxx_19_20, Rxx_20_24, Rxx_06_05] = Rxx_arrays/2
+[Rxy_11_19, Rxy_06_20, Rxy_05_24] = Rxy_arrays/2
+
+fig1_g_scan.Rxx_11_06 = Rxx_11_06
+fig1_g_scan.Rxx_19_20 = Rxx_19_20
+fig1_g_scan.Rxx_20_24 = Rxx_20_24
+fig1_g_scan.Rxx_06_05 = Rxx_06_05
+fig1_g_scan.Rxy_11_19 = Rxy_11_19
+fig1_g_scan.Rxy_06_20 = Rxy_06_20
+fig1_g_scan.Rxy_05_24 = Rxy_05_24
+fig1_g_scan.nn = nn
+fig1_g_scan.DD = DD
+
+os.chdir(plot_path)
+
+with open('fig1_gg_map.pickle', 'wb') as f:
+    pickle.dump(fig1_gg_map, f)
+
+with open('fig1_g_scan.pickle', 'wb') as f:
+    pickle.dump(fig1_g_scan, f)
+
+os.chdir(base_path)
 # %%

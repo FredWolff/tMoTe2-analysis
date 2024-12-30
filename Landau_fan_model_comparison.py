@@ -3,7 +3,7 @@
 %autoreload 2
 from typing import Union, Optional
 import qcodes as qc
-from qcodes.dataset import load_by_id
+from qcodes.dataset import load_by_id, plot_by_id
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
@@ -45,6 +45,13 @@ from functions import (Data,
                        shorten_array_without_peak_isolation,
                        gauss_base,
 )
+
+import pickle
+
+plot_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis/'
+base_path = '/'
+if os.getcwd() != base_path:
+    os.chdir(base_path)
 
 qc.config['user']['mainfolder'] = '/Volumes/STORE N GO/TD5'
 
@@ -256,7 +263,14 @@ def get_cut(Data_class: Data, attr_name: str) -> NDArray[np.float64]:
 
 # for cut in get_cut(Data_class, 'Rxx_11_06'):
 #     plt.plot(Data_class.nn[0], cut)
-        
+
+#%% data extract - B vs n
+if os.getcwd() != plot_path:
+    os.chdir(plot_path)      
+
+with open('B_n_data.pickle', 'wb') as f:
+    B_n_data = pickle.dump(Data_class, f)
+
 #%%
 def run_fitting_routine_single_D(
         Data_class: Data, 
@@ -1217,4 +1231,67 @@ alt_model_1 = lambda x, b, c: b * x + c
 alt_model_2 = lambda x, a, c: a * x**2 + c
 models_to_compare = (null_model, alt_model_1, alt_model_2)
 
+# %% extract data for paper plot - directionality of half
+
+# n = 2.51e12
+#V_20_06 - #2545: (I+; B+). 2547: (I-; B+). #2593: (I+; B-). #2595: (I-; B-)
+#V_06_11 - #2363: (I+, B+). 2365: (I-, B+). #2411: (I+, B-). #2413: (I-, B-)
+#V_19_20 - #2181: (I+, B+). 2183: (I-, B+). #2229: (I+, B-). #2231: (I-, B-)
+
+V_20_06_indices = [2545, 2547, 2593, 2595]
+V_06_11_indices = [2363, 2365, 2411, 2413]
+V_19_20_indices = [2181, 2183, 2229, 2231]
+
+def cal_long_R(
+        V_lists: list[NDArray[np.float64]],
+        I_lists: list[NDArray[np.float64]]
+) -> NDArray[np.float64]:
+    
+    V_1, V_2, V_3, V_4 = V_lists
+    I_1, I_2, I_3, I_4 = I_lists
+
+    return (V_1 - V_2 + V_3 - V_4) / (I_1 - I_2 + I_3 - I_4)
+
+def get_vdp_data(id_list: list[int]) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+
+    V_lists = []
+    I_lists = []
+    for id in id_list:
+        data = load_by_id(id).get_parameter_data()
+        D_array = data['dmm_dc']['D_at_fixed_n']
+        V_lists.append(data['dmm_dc']['dmm_dc'])
+        I_lists.append(data['dmm3_dc']['dmm3_dc'])
+
+    R_array = cal_long_R(V_lists, I_lists)
+
+    return D_array, R_array
+
+D_array_20_06, R_array_20_06 = get_vdp_data(V_20_06_indices)
+D_array_06_11, R_array_06_11 = get_vdp_data(V_06_11_indices)
+D_array_19_20, R_array_19_20 = get_vdp_data(V_19_20_indices)
+
+plot_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis/'
+if os.getcwd() != plot_path:
+    os.chdir(plot_path)
+
+D_correction = -0.015
+
+plot_data = {
+    'D_correction': D_correction,
+    'D_array_20_06': D_array_20_06,
+    'R_array_20_06': R_array_20_06,
+    'D_array_06_11': D_array_06_11,
+    'R_array_06_11': R_array_06_11,
+    'D_array_19_20': D_array_19_20,
+    'R_array_19_20': R_array_19_20,
+}
+
+with open(f'probe_dependence_half_paper_plot.pickle', 'wb') as f:
+    pickle.dump(plot_data, f)
+
+# plt.plot(D_array_20_06 - D_correction, R_array_20_06, label='20_06')
+# plt.plot(D_array_06_11 - D_correction, R_array_06_11, label='06_11')
+# plt.plot(D_array_19_20 - D_correction, R_array_19_20, label='19_20')
+
+# plt.xlim(-0.13, 0.13)
 # %%
