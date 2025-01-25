@@ -70,12 +70,10 @@ data_class = load_multiple_datasets()
 #%% 0.11
 probe = '11_06'
 step_size = 0.001
-filling = 'half'
+# filling = 'half'
 # filling = 'one_third'
-# filling = 'two_thirds'
+filling = 'two_thirds'
 D_lims, n_lims = input_dict[probe][filling].values()
-
-# D_lims = (0.13, 0.131)
 
 save_figs = False
 run_bootstrap = False
@@ -103,7 +101,6 @@ results = run_study(data_class,
 
 #%% extract data for paper plot - 1/2 coefficients D-dependence
 
-plot_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis/'
 if os.getcwd() != plot_path:
     os.chdir(plot_path)
 
@@ -144,6 +141,9 @@ plot_data = {
 
 with open('D_dependence_paper_plot.pickle', 'wb') as f:
     pickle.dump(plot_data, f)
+
+if os.getcwd() != base_path:
+    os.chdir(base_path)
 
 #%% 
 plt.plot(results[0.13].parameter_ranges[0], results[0.13].likelihood_curves[0], label='data')

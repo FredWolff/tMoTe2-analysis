@@ -65,8 +65,8 @@ cbg = 3*8.85e-12/(34e-9)
 ctg = 3*8.85e-12/(35.5e-9)
 D_0 = 0
 
-n_23 = -3.349e12
-n_12 = -2.652e12
+n_23 = -3.390e12
+n_12 = -2.598e12
 
 n_to_12_v = (n_23 - n_12)*6
 v_offset_2 = n_23 / n_to_12_v - 2/3
@@ -142,6 +142,23 @@ def get_n_correction(probe: str) -> float:
     n_correction = n_to_12_v/2 - n_12
 
     return n_correction
+
+def get_v_conversion(probe: str) -> float:
+
+    n_23 = -3.349e12
+    
+    if probe == '11_06':
+        n_12 = -2.652e12
+    elif probe == '19_20':
+        n_12 = -2.660e12
+    elif probe == '20_24':
+        n_12 = -2.601e12
+    elif probe == '06_05':
+        n_12 = -2.673e12
+    
+    n_to_12_v = (n_23 - n_12)*6
+
+    return n_to_12_v
 
 def V_to_n_and_D(
         Vt: float, 
@@ -310,6 +327,20 @@ def load_multiple_datasets(path: str='Volumes/STORE N GO/TD5/database/') -> Data
     Data_class.Rxy_06_20_sym_4= (Rxy_06_20_1-Rxy_06_20_2)/2
     Data_class.Rxy_05_24_sym_4= (Rxy_05_24_1-Rxy_05_24_2)/2
 
+    id1 = 532
+    dim = [121, 91]
+    Vb_list_20, Vt_list_20, nn_20, DD_20, [Rxx_11_06_1, Rxx_19_20_1, Rxx_20_24_1, Rxx_06_05_1, Rxy_11_19_1, Rxy_06_20_1, Rxy_05_24_1] = V_top_bottom_multiprobe(id1, dim)
+    id2 = 535
+    dim = [121, 91]
+    Vb_list_20, Vt_list_20, nn_20, DD_20, [Rxx_11_06_2, Rxx_19_20_2, Rxx_20_24_2, Rxx_06_05_2, Rxy_11_19_2, Rxy_06_20_2, Rxy_05_24_2] = V_top_bottom_multiprobe(id2, dim)
+    Data_class.Rxx_19_20_sym_20= (Rxx_19_20_1+Rxx_19_20_2)/2
+    Data_class.Rxx_11_06_sym_20= (Rxx_11_06_1+Rxx_11_06_2)/2
+    Data_class.Rxx_20_24_sym_20= (Rxx_20_24_1+Rxx_20_24_2)/2
+    Data_class.Rxx_06_05_sym_20= (Rxx_06_05_1+Rxx_06_05_2)/2
+    Data_class.Rxy_11_19_sym_20= (Rxy_11_19_1-Rxy_11_19_2)/2
+    Data_class.Rxy_06_20_sym_20= (Rxy_06_20_1-Rxy_06_20_2)/2
+    Data_class.Rxy_05_24_sym_20= (Rxy_05_24_1-Rxy_05_24_2)/2
+
     id1 = 529
     dim = [121, 91]
     Vb_list_05, Vt_list_05, nn, DD, [Rxx_11_06_1, Rxx_19_20_1, Rxx_20_24_1, Rxx_06_05_1, Rxy_11_19_1, Rxy_06_20_1, Rxy_05_24_1] = V_top_bottom_multiprobe(id1, dim)
@@ -370,6 +401,7 @@ def prepare_data_set(Data_class: Data, D_cut: Union[int,float], probe: str) -> D
     x_values = [Data_class.Vb_list_05[:, 0][xi] for xi, yi in crossed_points]
     y_values = [Data_class.Vt_list_05[0, :][yi] for xi, yi in crossed_points]
     Data_class.z_values_05 = [getattr(Data_class, f'Rxx_{probe}_sym_05')[xi, yi] for xi, yi in crossed_points]
+    Data_class.z_values_20 = [getattr(Data_class, f'Rxx_{probe}_sym_20')[xi, yi] for xi, yi in crossed_points]
 
     Data_class.nn_new_05 = [(ctg * y_val + cbg * x_val) / 1.6e-19 / 1e4 + n_correction for x_val, y_val in zip(x_values, y_values)]
 
@@ -523,11 +555,35 @@ def run_fitting_routine(
 
     Results_class = Results()
 
-    Results_class.n_set_list = [Data_class.nn_new, Data_class.nn_new_05, Data_class.nn_new_1, Data_class.nn_new, Data_class.nn_new_1, Data_class.nn_new, Data_class.nn_new_1, Data_class.nn_new]
-    data_list = [Data_class.z_values_200, Data_class.z_values_05, Data_class.z_values_75, Data_class.z_values_1, Data_class.z_values_150, Data_class.z_values_2, Data_class.z_values_225, Data_class.z_values_4]
-    Results_class.B_set_list = [0.2, 0.5, 0.75, 1, 1.5, 2, 2.25, 4]
+    Results_class.n_set_list = [
+        Data_class.nn_new_05, 
+        Data_class.nn_new, 
+        Data_class.nn_new_05, 
+        Data_class.nn_new_1, 
+        Data_class.nn_new, 
+        Data_class.nn_new_1, 
+        Data_class.nn_new, 
+        Data_class.nn_new_1, 
+        Data_class.nn_new
+    ]
+    data_list = [
+        Data_class.z_values_20, 
+        Data_class.z_values_200, 
+        Data_class.z_values_05, 
+        Data_class.z_values_75, 
+        Data_class.z_values_1, 
+        Data_class.z_values_150, 
+        Data_class.z_values_2, 
+        Data_class.z_values_225, 
+        Data_class.z_values_4
+    ]
+    Results_class.B_set_list = [0.02, 0.2, 0.5, 0.75, 1, 1.5, 2, 2.25, 4]
 
-    Results_class, data_list = filling_considerations(Results_class, data_list, filling)
+    Results_class, data_list = filling_considerations(
+        Results_class, 
+        data_list, 
+        filling
+    )
     (Results_class.n_set_list_slice, 
      Results_class.data_list_slice, 
      Results_class.filter_flag,
@@ -566,7 +622,7 @@ def run_fitting_routine(
         except:
             popt, pcov = p0, np.zeros((len(p0), len(p0)))
             fit_succes.append(0)
-
+        plt.plot(x_list, field_cut)
         fit_pred = lorentzian(np.array(x_list), *popt)
         R_val = R_bar_squared(np.array(field_cut), fit_pred, popt)
 
@@ -886,7 +942,7 @@ def shorten_array(
             if nlims[0] < n < nlims[1]:
                 new_data.append(d)
                 new_n.append(n)
-
+        # plt.plot(new_n, new_data)
         filter_flag_list.append(0)
         if filling == 'one_third':
             
@@ -1003,9 +1059,9 @@ def filling_considerations(
         Results_class.B_set_list = Results_class.B_set_list[:-4]
 
     if filling == 'one_third':
-        Results_class.n_set_list = Results_class.n_set_list[3:]
-        data_list = data_list[3:]
-        Results_class.B_set_list = Results_class.B_set_list[3:]
+        Results_class.n_set_list = Results_class.n_set_list[4:]
+        data_list = data_list[4:]
+        Results_class.B_set_list = Results_class.B_set_list[4:]
 
     return Results_class, data_list
 
@@ -1269,14 +1325,14 @@ def inspect_study_quality(result_dict: dict[float, Results],
         filter_flag = np.array(result_dict[D_cut].filter_flag)
         filtered_fits = np.where(filter_flag == 1)[0]
 
-        fig1, ax1 = plt.subplots(2, 4, figsize=(12,8))
+        fig1, ax1 = plt.subplots(3, 3, figsize=(12,12))
         plt.suptitle(f'D_cut/$e_{0}$ = {D_cut:.3f} [V/nm], {probe}, mean ' + r'$\bar{R}^2$ = ' 
                             + f'{np.array(result_dict[D_cut].fit_R_sq_red)[succesful_fits].mean():.3f}', 
                             fontsize=16)
 
         i, j = 0, 0
         if filling == 'one_third':
-            j = 3
+            j = 4
 
         for plot_index in range(len(result_dict[D_cut].n_set_list_slice)):
             
@@ -1968,6 +2024,8 @@ def create_fig1_ax23(
 
     nn = nn_uncorr + corr_vec[0]
     DD = DD_uncorr - corr_vec[1]
+    probe = '11_06'
+    n_to_12_v = get_v_conversion(probe)
     vv = nn / np.abs(n_to_12_v)
 
     xx_cmap.set_bad(color='black')
@@ -2375,8 +2433,17 @@ def create_fig4_ax2_sns(
     ax2_2.set_xlim(0.12, 0.245)
     ax2_1.set_ylabel(r'$a_1$ [$(cm·T)^{-2}$]')
     ax2_2.set_ylabel(r'$a_2$ [$cm^{-2}$]')
-    ax2_1.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
+    # ax2_1.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
     ax2_2.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
+
+    ax2_1.tick_params(labelbottom=False)
+    # ax2_2.yaxis.get_offset_text().set_transform(ax2_2.transData)
+    # ax2_2.yaxis.get_offset_text().set_x(-0.054)
+    # ax2_2.yaxis.get_offset_text().set_y(-2.4e12)
+    # ax2_2.yaxis.get_offset_text().set_position((-0.054, 0))
+
+    return ax2_2.yaxis.get_offset_text().get_position()
+
 
 def create_fig4_ax3(
         ax3: matplotlib.axes.Axes,

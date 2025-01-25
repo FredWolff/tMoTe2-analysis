@@ -40,9 +40,9 @@ filling_colors = {
     'two_thirds': color_2_3
 }
 
-color_20_06 = '#4682B4' # steelblue 
-color_06_11 = 'grey'#'#FF4500' # orangered
-color_19_20 = 'black'#'#FFD700' # gold
+color_20_06 = 'saddlebrown'#'#4682B4' # steelblue 
+color_06_11 = 'red'#'grey'#'#FF4500' # orangered
+color_19_20 = 'orange'#'black'#'#FFD700' # gold
 
 probe_colors = [color_20_06, color_06_11, color_19_20]
 
@@ -52,8 +52,8 @@ Rxy_color = 'coral'
 R_color_list = [Rxx_color, Rxy_color]
 
 linestyle_20_06 = '-'
-linestyle_06_11 = 'dashed'
-linestyle_19_20 = 'dotted'
+linestyle_06_11 = '-'#'dashed'
+linestyle_19_20 = '-'#'dotted'
 
 linestyle_list = [linestyle_20_06, linestyle_06_11, linestyle_19_20]
 
@@ -205,17 +205,16 @@ for ax, label in zip([ax1, ax3, ax4_1], labels):
 # from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 fig4 = plt.figure( figsize=(16, 10))
 
-scaling = 1
-gs = plt.GridSpec(scaling*10, scaling*10, figure=fig4)
-ax1 = fig4.add_subplot(gs[0:scaling*6, :scaling*6])
+gs = plt.GridSpec(100, 100, figure=fig4)
+ax1 = fig4.add_subplot(gs[0:56, :58])
 # ax1_ins = inset_axes(ax1, width="60%", height="50%", loc=3, borderpad=1)
-ax2_2 = fig4.add_subplot(gs[scaling*8:, 0:scaling*6])
-ax2_1 = fig4.add_subplot(gs[scaling*6:scaling*8, 0:scaling*6])#, sharex=ax2_2)
+ax2_2 = fig4.add_subplot(gs[83:, 0:58])
+ax2_1 = fig4.add_subplot(gs[63:80, 0:58])
 
 ax2_2.sharex(ax2_1)
 
-ax3 = fig4.add_subplot(gs[:scaling*4, scaling*6:])
-ax4 = fig4.add_subplot(gs[scaling*4:, scaling*6:])
+ax3 = fig4.add_subplot(gs[:36, 64:])
+ax4 = fig4.add_subplot(gs[44:, 64:])
 
 #### ax1 #### data from "discrete_v_B_dependence.py"
 with open('B_dependence_one_third_paper_plot.pickle', 'rb') as f:
@@ -245,7 +244,10 @@ create_fig4_ax1(
 with open('D_dependence_paper_plot.pickle', 'rb') as f:
     D_dependence_data = pickle.load(f)
 
-create_fig4_ax2_sns(ax2_1, ax2_2, D_dependence_data, color_1_2)
+x_, y_ = create_fig4_ax2_sns(ax2_1, ax2_2, D_dependence_data, color_1_2)
+
+ax2_1.tick_params(axis='x', which='major', zorder=5)
+ax2_1.tick_params(axis='x', which='minor', zorder=5)
 # ax2_1.xaxis.set_ticklabels([])
 # ax2_1.tick_params(labelbottom=False)
 create_fig4_ax3(ax3, D_dependence_data, color_1_2)
@@ -255,6 +257,7 @@ create_fig4_ax3(ax3, D_dependence_data, color_1_2)
 with open(f'probe_dependence_half_paper_plot.pickle', 'rb') as f:
     probe_dependence_half = pickle.load(f)
 
+# We should also produce such a subplot for 2/3 to see if the anisotropy is 1/2-specific
 create_fig4_ax4(
     ax4, 
     probe_dependence_half, 
@@ -266,12 +269,25 @@ create_fig4_ax4(
 
 add_minor_ticks(fig4)
 
-plt.tight_layout()
+pos1 = ax2_1.get_position()
+pos2 = ax2_2.get_position()
+# ax2_2.set_position([pos2.x0, pos1.y0 - pos2.height, pos2.width, pos2.height])
 
-labels = ['a', 'b', 'c', 'd', 'e']
+# plt.tight_layout()
 
-for ax, label in zip([ax1, ax2_1, ax2_2, ax3, ax4], labels):
-    ax.text(-0.1, 1.1, label, transform=ax.transAxes, fontsize=18, fontweight='bold', va='top', ha='left')
+labels = ['a', 'b', 'c', 'd']
+
+for ax, label in zip([ax1, ax2_1, ax3, ax4], labels):
+    ax.text(
+        -0.1, 
+        1.1, 
+        label, 
+        transform=ax.transAxes, 
+        fontsize=18, 
+        fontweight='bold', 
+        va='top', 
+        ha='left'
+    )
 
 # ax1_ins.tick_params(labelleft=False, labelbottom=False)
 
