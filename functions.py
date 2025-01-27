@@ -490,14 +490,20 @@ def get_MLE_error(
         params: NDArray[np.float64], 
         args:  tuple[NDArray[np.float64], NDArray[np.float64], float, float],
         scaling_params: NDArray[np.float64],
+        filling: str,
     ) -> NDArray[np.float64]:
     
     x, y, gamma, scaling, model = args
     hessian_func = hessian(lorentzian_log_likelihood)
     hessian_matrix = hessian_func(params, x, y, gamma, scaling, model)
     hessian_matrix = map_hessian(hessian_matrix, scaling_params)
-    cov_matrix = np.linalg.inv(hessian_matrix)
-    errors = np.sqrt(np.diag(cov_matrix))
+    if filling == 'half':
+        cov_matrix = np.linalg.inv(hessian_matrix)
+        errors = np.sqrt(np.diag(cov_matrix))
+    else:
+        cov_var = np.max(np.diag(hessian_matrix))**(-1)
+        errors = np.sqrt(cov_var)
+    
 
     return errors, hessian_matrix
 
@@ -622,7 +628,7 @@ def run_fitting_routine(
         except:
             popt, pcov = p0, np.zeros((len(p0), len(p0)))
             fit_succes.append(0)
-        plt.plot(x_list, field_cut)
+
         fit_pred = lorentzian(np.array(x_list), *popt)
         R_val = R_bar_squared(np.array(field_cut), fit_pred, popt)
 
@@ -853,7 +859,12 @@ def run_fitting_routine(
         hessian = np.array([[a, c/2], [c/2, b]])
         return hessian, log_likelihood
 
-    MLE_error_autograd, hessian_matrix = get_MLE_error(MLE_result.x, args, param_scaling)
+    MLE_error_autograd, hessian_matrix = get_MLE_error(
+        MLE_result.x, 
+        args, 
+        param_scaling,
+        filling,
+    )
 
     Results_class.hessian_matrix = hessian_matrix
     Results_class.MLE_params = MLE_result.x * param_scaling
@@ -2141,6 +2152,7 @@ def create_fig1_ax4(
 def create_fig2_ax12(
         ax1: matplotlib.axes.Axes,
         ax2: matplotlib.axes.Axes,
+        cax2: matplotlib.axes.Axes,
         cax1: matplotlib.axes.Axes,
         fig2_gg_map: Data,
         cmap: matplotlib.colors.Colormap,
@@ -2154,9 +2166,7 @@ def create_fig2_ax12(
     nn = nn_uncorr + corr_vec[0]
     DD = DD_uncorr - corr_vec[1]
 
-    cmap.set_bad(color='black')
-
-    z_lims = (0.01, 200)
+    z_lims = (0.03, 200)
     # x_lims = (-5.1e12, 0.05e12)
     x_lims = (-4e12, 0.05e12)
 
@@ -2175,16 +2185,19 @@ def create_fig2_ax12(
         cmap=cmap,
     )
 
-    # cbar1 = plt.colorbar(mesh1)
-    cbar2 = plt.colorbar(mesh2, cax=cax1)
-    # cbar1.set_label(r'$R_{xx}$ [h/e$^2$]')
+    cbar1 = plt.colorbar(mesh1, cax=cax1)
+    cbar2 = plt.colorbar(mesh2, cax=cax2)
+    cbar1.set_label(r'$R_{xx}$ [h/e$^2$]')
     cbar2.set_label(r'$R_{xx}$ [h/e$^2$]')
     ax1.set_xlabel(r'$n$ [$cm^{-2}$]')
     ax2.set_xlabel(r'$n$ [$cm^{-2}$]')
     ax1.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
-    # ax2.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
+    ax2.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
 
-    ax2.tick_params(labelleft=False)
+    # ax2.tick_params(labelleft=False)
+    tick_labels = ax1.get_xticks()
+    tick_labels = list(tick_labels)
+    ax1.set_xticks(tick_labels[2:])
     tick_labels = ax2.get_xticks()
     tick_labels = list(tick_labels)
     ax2.set_xticks(tick_labels[2:])
@@ -2204,9 +2217,7 @@ def create_fig2_ax3(
     BB = B_n_data.Bperp
     R_array = B_n_data.Rxx_11_06 / R_Q
 
-    cmap.set_bad(color='black')
-
-    z_lims = (0.01, 200)
+    z_lims = (0.02, 200)
 
     mesh = ax3.pcolormesh(
         nn,
@@ -2339,6 +2350,35 @@ def create_fig4_ax1(
     ax1.set_ylabel(r'$B$ [$T$]')
     ax1.set_ylim(0, 4.1)
 
+def create_fig4_ax1_ins(
+        ax1_ins: matplotlib.axes.Axes,
+        B_n_data: Data,
+        cmap: matplotlib.colors.Colormap,
+        corr_vec: list[float],
+) -> None:
+    
+    nn = B_n_data.nn + corr_vec[0]
+    DD = B_n_data.DD - corr_vec[1]
+    BB = B_n_data.Bperp
+    R_array = B_n_data.Rxx_11_06 / R_Q
+
+    x_lims = (-3.2e12, -1e12)
+    z_lims = (0.01, 200)
+
+    mesh = ax1_ins.pcolormesh(
+        nn,
+        BB,
+        R_array,
+        norm=matplotlib.colors.LogNorm(vmin=z_lims[0], vmax=z_lims[1]),
+        cmap=cmap,
+    )
+
+    ax1_ins.set_xticks([])
+    ax1_ins.set_yticks([])
+    ax1_ins.set_xlim(x_lims)
+    # ax1_ins.set_xlabel(r'$n$ [$cm^{-2}$]')
+    # ax1_ins.set_ylabel(r'$B$ [$T$]')
+
 def create_fig4_ax2(
     ax2_1: matplotlib.axes.Axes,
     ax2_2: matplotlib.axes.Axes,
@@ -2459,7 +2499,7 @@ def create_fig4_ax3(
     
     line_handles = []
 
-    for i in range(len(D_list)):
+    for i in [0, len(D_list)//2, -1]:#range(len(D_list)):
 
         line, = ax3.plot(
             model_list[i], 
@@ -2469,10 +2509,15 @@ def create_fig4_ax3(
         line_handles.append(line)
 
     ax3.legend(
-        handles=[line_handles[0], line_handles[-1]], 
+        handles=[
+            line_handles[0], 
+            line_handles[1], 
+            line_handles[-1],
+        ], 
         labels=[
             f'$D/\epsilon_{0}$ = {D_list[0]:.3f}', 
-            f'$D/\epsilon_{0}$ = {D_list[-1]:.3f}'
+            f'$D/\epsilon_{0}$ = {D_list[len(D_list)//2]:.3f}',
+            f'$D/\epsilon_{0}$ = {D_list[-1]:.3f}',
         ]
     )
 
