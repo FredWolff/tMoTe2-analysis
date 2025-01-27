@@ -9,8 +9,12 @@
 %autoreload 2
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import matplotlib
 import sys
 import pickle
+
+# matplotlib.use('pdf')
+matplotlib.rc('font', family='arial')
 
 import_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis'
 sys.path.append(import_path)
@@ -69,8 +73,9 @@ custom_xx_cmap = matplotlib.colors.LinearSegmentedColormap.from_list(
     '', 
     ['black', 'mediumblue', 'lightsteelblue', 'lightseagreen', 'navajowhite']
 )
-# Rxx_cmap = cm.inferno
-Rxx_cmap = custom_xx_cmap
+Rxx_cmap = cm.inferno
+# Rxx_cmap = custom_xx_cmap
+Rxx_cmap.set_bad(color='grey')
 Rxy_cmap = cm.coolwarm
 
 #### gate correction ####
@@ -80,6 +85,8 @@ with open(f'probe_dependence_half_paper_plot.pickle', 'rb') as f:
 uni_D_corr = probe_dependence_half['D_correction']
 
 corr_vec = [n_corr, uni_D_corr]
+
+in_out_style = {'in': 'solid', 'out': 'dashed'}
 
 #%% Fig 1
 fig1 = plt.figure(figsize=(16, 10))
@@ -137,13 +144,14 @@ fig2 = plt.figure(figsize=(16, 10))
 hspace = 4
 
 gs = plt.GridSpec(100, 100, figure=fig2)
-ax1 = fig2.add_subplot(gs[:40-hspace, :28])
-ax2 = fig2.add_subplot(gs[:40-hspace, 28:56], sharey=ax1)
-cax2 = fig2.add_subplot(gs[:40-hspace, 57:59])
-ax3 = fig2.add_subplot(gs[40+hspace:, :56])
-cax3 = fig2.add_subplot(gs[40+hspace:, 57:59])
-ax4_1 = fig2.add_subplot(gs[:, 70:85])
-ax4_2 = fig2.add_subplot(gs[:, 85:], sharey=ax4_1)
+ax1 = fig2.add_subplot(gs[:40-hspace, :36])
+cax1 = fig2.add_subplot(gs[:40-hspace, 37:39])
+ax2 = fig2.add_subplot(gs[:40-hspace, 51:87])
+cax2 = fig2.add_subplot(gs[:40-hspace, 88:90])
+ax3 = fig2.add_subplot(gs[40+hspace:, :87])
+cax3 = fig2.add_subplot(gs[40+hspace:, 88:90])
+# ax4_1 = fig2.add_subplot(gs[:, 70:85])
+# ax4_2 = fig2.add_subplot(gs[:, 85:], sharey=ax4_1)
 
 #### ax1 & ax2 ####
 
@@ -153,6 +161,7 @@ with open('fig2_gg_map.pickle', 'rb') as f:
 create_fig2_ax12(
     ax1, 
     ax2, 
+    cax1,
     cax2,
     fig2_gg_map, 
     Rxx_cmap,
@@ -174,56 +183,56 @@ create_fig2_ax3(
 
 #### ax4 ####
 
-create_fig2_ax4(
-    ax4_1,
-    ax4_2,
-    B_n_data,
-    filling_colors,
-    corr_vec,
-)
+# create_fig2_ax4(
+#     ax4_1,
+#     ax4_2,
+#     B_n_data,
+#     filling_colors,
+#     corr_vec,
+# )
 
 # plt.tight_layout()
 
 # plt.subplots_adjust(left = 0, top = 1, right = 1, bottom = 0, hspace = 0.5, wspace = 0)
 
-pos1 = ax1.get_position()
-pos2 = ax2.get_position()
-ax2.set_position([pos1.x1, pos2.y0, pos2.width, pos2.height])
+# pos1 = ax1.get_position()
+# pos2 = ax2.get_position()
+# ax2.set_position([pos1.x1, pos2.y0, pos2.width, pos2.height])
 
-pos1 = ax4_1.get_position()
-pos2 = ax4_2.get_position()
-ax4_2.set_position([pos1.x1, pos2.y0, pos2.width, pos2.height])
+# pos1 = ax4_1.get_position()
+# pos2 = ax4_2.get_position()
+# ax4_2.set_position([pos1.x1, pos2.y0, pos2.width, pos2.height])
 
 add_minor_ticks(fig2)
 
 labels = ['a', 'b', 'c']
 
-for ax, label in zip([ax1, ax3, ax4_1], labels):
+for ax, label in zip([ax1, ax2, ax3], labels):
     ax.text(-0.1, 1.1, label, transform=ax.transAxes, fontsize=18, fontweight='bold', va='top', ha='left')
 
 #%% Fig 4
-# from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-fig4 = plt.figure( figsize=(16, 10))
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+fig4 = plt.figure( figsize=(16, 10) )
 
 gs = plt.GridSpec(100, 100, figure=fig4)
-ax1 = fig4.add_subplot(gs[0:56, :58])
-# ax1_ins = inset_axes(ax1, width="60%", height="50%", loc=3, borderpad=1)
-ax2_2 = fig4.add_subplot(gs[83:, 0:58])
-ax2_1 = fig4.add_subplot(gs[63:80, 0:58])
+ax1 = fig4.add_subplot(gs[:, :58])
+ax1_ins = inset_axes(ax1, width="60%", height="25%", loc=3, borderpad=1)
+# ax2_2 = fig4.add_subplot(gs[83:, 0:58])
+# ax2_1 = fig4.add_subplot(gs[63:80, 0:58])
 
-ax2_2.sharex(ax2_1)
+# ax2_2.sharex(ax2_1)
 
 ax3 = fig4.add_subplot(gs[:36, 64:])
 ax4 = fig4.add_subplot(gs[44:, 64:])
 
 #### ax1 #### data from "discrete_v_B_dependence.py"
-with open('B_dependence_one_third_paper_plot.pickle', 'rb') as f:
+with open('jar/B_dependence_one_third_paper_plot.pickle', 'rb') as f:
     fitted_B_one_third = pickle.load(f)
 
-with open('B_dependence_half_paper_plot.pickle', 'rb') as f:
+with open('jar/B_dependence_half_paper_plot.pickle', 'rb') as f:
     fitted_B_half = pickle.load(f)
 
-with open('B_dependence_two_thirds_paper_plot.pickle', 'rb') as f:
+with open('jar/B_dependence_two_thirds_paper_plot.pickle', 'rb') as f:
     fitted_B_two_thirds = pickle.load(f)
 
 color_fillings = [color_1_3, color_1_2, color_2_3]
@@ -234,20 +243,33 @@ create_fig4_ax1(
     fitted_B_two_thirds,
     color_fillings,
     shape_list,
+    in_out_style,
 )
 # ax1.view_init(elev=10, azim=0)
 
+with open('B_n_data.pickle', 'rb') as f:
+    B_n_data = pickle.load(f)
 
-
+create_fig4_ax1_ins(
+    ax1_ins,
+    B_n_data, 
+    Rxx_cmap,
+    corr_vec,
+    fitted_B_one_third, 
+    fitted_B_half, 
+    fitted_B_two_thirds,
+    color_fillings,
+    in_out_style,
+)
 
 #### ax2 & ax3 #### data from "discrete_v_B_dependence.py"
 with open('D_dependence_paper_plot.pickle', 'rb') as f:
     D_dependence_data = pickle.load(f)
 
-x_, y_ = create_fig4_ax2_sns(ax2_1, ax2_2, D_dependence_data, color_1_2)
+# x_, y_ = create_fig4_ax2_sns(ax2_1, ax2_2, D_dependence_data, color_1_2)
 
-ax2_1.tick_params(axis='x', which='major', zorder=5)
-ax2_1.tick_params(axis='x', which='minor', zorder=5)
+# ax2_1.tick_params(axis='x', which='major', zorder=5)
+# ax2_1.tick_params(axis='x', which='minor', zorder=5)
 # ax2_1.xaxis.set_ticklabels([])
 # ax2_1.tick_params(labelbottom=False)
 create_fig4_ax3(ax3, D_dependence_data, color_1_2)
@@ -269,15 +291,15 @@ create_fig4_ax4(
 
 add_minor_ticks(fig4)
 
-pos1 = ax2_1.get_position()
-pos2 = ax2_2.get_position()
+# pos1 = ax2_1.get_position()
+# pos2 = ax2_2.get_position()
 # ax2_2.set_position([pos2.x0, pos1.y0 - pos2.height, pos2.width, pos2.height])
 
 # plt.tight_layout()
 
-labels = ['a', 'b', 'c', 'd']
+labels = ['a', 'b', 'c']
 
-for ax, label in zip([ax1, ax2_1, ax3, ax4], labels):
+for ax, label in zip([ax1, ax3, ax4], labels):
     ax.text(
         -0.1, 
         1.1, 

@@ -2296,6 +2296,11 @@ def create_fig2_ax4(
     set_ax_xlims(ax4_1, two_thirds_x_range)
     set_ax_xlims(ax4_2, one_third_x_range)    
 
+def gen_B_in_out(B_lim, B_sample):
+    B_in = np.linspace(np.min(B_sample), np.max(B_sample), 151)
+    B_out = np.linspace(np.min(B_lim), np.max(B_lim), 151)
+    return B_in, B_out
+
 def create_fig4_ax1(
     ax1: matplotlib.axes.Axes,
     fitted_B_one_third: dict[any],
@@ -2303,6 +2308,7 @@ def create_fig4_ax1(
     fitted_B_two_thirds: dict[any],
     color_list: list[str],
     shape_list: list[str],
+    in_out_style: dict[str],
 ) -> None:
 
     a_d = fitted_B_one_third
@@ -2344,23 +2350,81 @@ def create_fig4_ax1(
         capsize=8,
         elinewidth=1.5,
     )
+
+    B_lim = np.array([-0.05, 4.1])
+    n_cp = a_d['n_post_correction']
+
+    B_in_one_third, B_out_one_third = gen_B_in_out(B_lim, a_d['B_array'])
+    a_d['fit_params'] += np.array([0, n_cp])
+    ax1.plot(
+        a_d['model_function'](B_out_one_third, *a_d['fit_params']) - a_d['y_0'],
+        B_out_one_third,
+        linestyle=in_out_style['out'],
+        color=color_list[0],
+    )
+    ax1.plot(
+        a_d['model_function'](B_in_one_third, *a_d['fit_params']) - a_d['y_0'],
+        B_in_one_third,
+        linestyle=in_out_style['in'],
+        color=color_list[0],
+    )
+
+    B_in_half, B_out_half = gen_B_in_out(B_lim, b_d['B_array'])
+    b_d['fit_params'] += np.array([0, n_cp])
+    ax1.plot(
+        b_d['model_function'](B_out_half, *b_d['fit_params']) - b_d['y_0'],
+        B_out_half,
+        linestyle=in_out_style['out'],
+        color=color_list[1],
+    )
+    ax1.plot(
+        b_d['model_function'](B_in_half, *b_d['fit_params']) - b_d['y_0'],
+        B_in_half,
+        linestyle=in_out_style['in'],
+        color=color_list[1],
+    )
+
+    B_in_two_thirds, B_out_two_thirds = gen_B_in_out(B_lim, c_d['B_array'])
+    c_d['fit_params'] += np.array([0, n_cp])
+    ax1.plot(
+        c_d['model_function'](B_out_two_thirds, *c_d['fit_params']) - c_d['y_0'],
+        B_out_two_thirds,
+        linestyle=in_out_style['out'],
+        color=color_list[2],
+    )
+    ax1.plot(
+        c_d['model_function'](B_in_two_thirds, *c_d['fit_params']) - c_d['y_0'],
+        B_in_two_thirds,
+        linestyle=in_out_style['in'],
+        color=color_list[2],
+    )
     
     ax1.legend(loc='best')
     ax1.set_xlabel(r'$\delta n$ [$cm^{-2}]$')
     ax1.set_ylabel(r'$B$ [$T$]')
-    ax1.set_ylim(0, 4.1)
+    ax1.set_ylim(-0.05, 4.1)
 
 def create_fig4_ax1_ins(
         ax1_ins: matplotlib.axes.Axes,
         B_n_data: Data,
         cmap: matplotlib.colors.Colormap,
         corr_vec: list[float],
+        fitted_B_one_third: dict[any],
+        fitted_B_half: dict[any],
+        fitted_B_two_thirds: dict[any],
+        color_list: list[str],
+        in_out_style: dict[str],
 ) -> None:
     
     nn = B_n_data.nn + corr_vec[0]
     DD = B_n_data.DD - corr_vec[1]
     BB = B_n_data.Bperp
     R_array = B_n_data.Rxx_11_06 / R_Q
+
+    a_d = fitted_B_one_third
+    b_d = fitted_B_half
+    c_d = fitted_B_two_thirds
+    n_cp = a_d['n_post_correction']
 
     x_lims = (-3.2e12, -1e12)
     z_lims = (0.01, 200)
@@ -2373,9 +2437,63 @@ def create_fig4_ax1_ins(
         cmap=cmap,
     )
 
+    B_lim = np.array([-0.05, 2.5])
+
+    B_in_one_third, B_out_one_third = gen_B_in_out(B_lim, a_d['B_array'])
+    # a_d['fit_params'] += np.array([0, n_cp])
+    ax1_ins.plot(
+        a_d['model_function'](B_out_one_third, *a_d['fit_params']),
+        B_out_one_third,
+        linestyle=in_out_style['out'],
+        color=color_list[0],
+        linewidth=2.5,
+    )
+    ax1_ins.plot(
+        a_d['model_function'](B_in_one_third, *a_d['fit_params']),
+        B_in_one_third,
+        linestyle=in_out_style['in'],
+        color=color_list[0],
+        linewidth=2.5,
+    )
+
+    B_in_half, B_out_half = gen_B_in_out(B_lim, b_d['B_array'])
+    # b_d['fit_params'] += np.array([0, n_cp])
+    ax1_ins.plot(
+        b_d['model_function'](B_out_half, *b_d['fit_params']),
+        B_out_half,
+        linestyle=in_out_style['out'],
+        color=color_list[1],
+        linewidth=2.5,
+    )
+    ax1_ins.plot(
+        b_d['model_function'](B_in_half, *b_d['fit_params']),
+        B_in_half,
+        linestyle=in_out_style['in'],
+        color=color_list[1],
+        linewidth=2.5,
+    )
+
+    B_in_two_thirds, B_out_two_thirds = gen_B_in_out(B_lim, c_d['B_array'])
+    # c_d['fit_params'] += np.array([0, n_cp])
+    ax1_ins.plot(
+        c_d['model_function'](B_out_two_thirds, *c_d['fit_params']),
+        B_out_two_thirds,
+        linestyle=in_out_style['out'],
+        color=color_list[2],
+        linewidth=2.5,
+    )
+    ax1_ins.plot(
+        c_d['model_function'](B_in_two_thirds, *c_d['fit_params']),
+        B_in_two_thirds,
+        linestyle=in_out_style['in'],
+        color=color_list[2],
+        linewidth=2.5,
+    )
+
     ax1_ins.set_xticks([])
     ax1_ins.set_yticks([])
     ax1_ins.set_xlim(x_lims)
+    ax1_ins.set_ylim(np.min(BB), np.max(BB))
     # ax1_ins.set_xlabel(r'$n$ [$cm^{-2}$]')
     # ax1_ins.set_ylabel(r'$B$ [$T$]')
 

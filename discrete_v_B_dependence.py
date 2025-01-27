@@ -336,6 +336,10 @@ D_lims_one_third, n_lims_one_third = input_dict[probe][filling_one_third].values
 D_lims_half, n_lims_half = input_dict[probe][filling_half].values()
 D_lims_two_thirds, n_lims_two_thirds = input_dict[probe][filling_two_thirds].values()
 
+D_lims_one_third = D_lims_one_third
+D_lims_half = D_lims_half
+D_lims_two_thirds = D_lims_two_thirds
+
 save_figs = False
 run_bootstrap = False
 asymptote_args = (True, True) # (show_asymptote_plot, allow_offset)
@@ -434,12 +438,18 @@ for filling, result_dict in zip(filling_list, results_list):
         'fit_array': fit_array[succesful_fits] + n_post_correction,
         'y_0': y_0,
         'gamma_array': gamma_array[succesful_fits],
+        'fit_params': result_dict[D_cut].MLE_params,
         'model_function': model_function,
         'n_post_correction': n_post_correction,
     }
 
-    with open(f'B_dependence_{filling}_paper_plot.pickle', 'wb') as f:
+    if os.getcwd() != plot_path:
+        os.chdir(plot_path)
+
+    with open(f'jar/B_dependence_{filling}_paper_plot.pickle', 'wb') as f:
         pickle.dump(plot_data, f)
+
+    os.chdir(base_path)
 
 ax.set_xlabel('B [T]')
 ax.set_ylabel(r'$\delta$n [$cm^{-2}$]')
@@ -639,6 +649,8 @@ if os.getcwd() != plot_path:
 
 with open('fig2_gg_map.pickle', 'wb') as f:
     pickle.dump(fig2_gg_map, f)
+
+os.chdir(base_path)
 
 ##########
 
