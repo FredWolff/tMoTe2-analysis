@@ -1907,13 +1907,16 @@ def evaluate_MLE_errors(
 
 def add_minor_ticks(
         fig: matplotlib.figure.Figure,
+        *args: matplotlib.axes.Axes
 ) -> None:
     
+    except_axes = args
     for ax in fig.axes:
-        if ax.get_xscale() != 'log':
-            ax.xaxis.set_minor_locator(AutoMinorLocator())
-        if ax.get_yscale() != 'log':    
-            ax.yaxis.set_minor_locator(AutoMinorLocator())
+        if ax not in except_axes:
+            if ax.get_xscale() != 'log':
+                ax.xaxis.set_minor_locator(AutoMinorLocator())
+            if ax.get_yscale() != 'log':    
+                ax.yaxis.set_minor_locator(AutoMinorLocator())
 
 # def save_fig(
 #         fig: matplotlib.figure.Figure, 
@@ -2013,8 +2016,8 @@ def n_sweep_complete(id):
     return nn, DD, I_phase, R_arrays
 
 def set_ax_xlims(
-        ax: matplotlib.axes.Axes, 
-        x_lims: tuple[float, float]
+    ax: matplotlib.axes.Axes, 
+    x_lims: tuple[float, float]
 ) -> None:
     ax.set_xlim(x_lims[0], x_lims[1])
 
@@ -2027,7 +2030,7 @@ def create_fig1_ax23(
         xx_cmap: matplotlib.colors.Colormap,
         xy_cmap: matplotlib.colors.Colormap,
         corr_vec: list[float],
-) -> None:
+) -> tuple[matplotlib.axes.Axes]:
 
     nn_uncorr, DD_uncorr = fig1_gg_map.nn, fig1_gg_map.DD
     Rxx_200 = fig1_gg_map.Rxx_11_06_sym_200 / R_Q
@@ -2098,14 +2101,22 @@ def create_fig1_ax23(
     ax3.set_xlabel(r'$n$ [$cm^{-2}$]')
     ax2.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
     ax3.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
+
     ax2_top.set_xlabel(r'$\nu$')
     ax3_top.set_xlabel(r'$\nu$')
+
+    [set_ax_xlims(ax, x_lims) for ax in [ax2, ax3]]
+    [set_ax_xlims(ax, v_lims) for ax in [ax2_top, ax3_top]]
+
+    v_ticks = ax2_top.get_xticks()
+    v_tick_labels = np.round(np.abs(v_ticks), 1)
+    ax2_top.set_xticklabels(v_tick_labels)
+    ax3_top.set_xticklabels(v_tick_labels)
 
     # ax2.tick_params(labelbottom=False)
     # ax3_top.tick_params(labeltop=False)
 
-    [set_ax_xlims(ax, x_lims) for ax in [ax2, ax3]]
-    [set_ax_xlims(ax, v_lims) for ax in [ax2_top, ax3_top]]
+    return ax2_top, ax3_top
 
 def create_fig1_ax4(
     ax4_xy: matplotlib.axes.Axes,
@@ -2157,7 +2168,7 @@ def create_fig2_ax12(
         fig2_gg_map: Data,
         cmap: matplotlib.colors.Colormap,
         corr_vec: list[float],
-) -> None:
+) -> tuple[matplotlib.axes.Axes]:
     
     nn_uncorr, DD_uncorr = fig2_gg_map.nn, fig2_gg_map.DD
     R_200 = fig2_gg_map.Rxx_11_06_sym_200 / R_Q
@@ -2165,23 +2176,57 @@ def create_fig2_ax12(
 
     nn = nn_uncorr + corr_vec[0]
     DD = DD_uncorr - corr_vec[1]
+    probe = '11_06'
+    n_to_12_v = get_v_conversion(probe)
+    vv = nn / np.abs(n_to_12_v)
 
     z_lims = (0.03, 200)
-    # x_lims = (-5.1e12, 0.05e12)
-    x_lims = (-4e12, 0.05e12)
+    x_lims = (-4.95e12, -0.85e12)
+    v_lims = (x_lims[0] / np.abs(n_to_12_v), 
+              x_lims[1] / np.abs(n_to_12_v))
 
     mesh1 = ax1.pcolormesh(
         nn, 
         DD, 
         R_200, 
-        norm=matplotlib.colors.LogNorm(vmin=z_lims[0], vmax=z_lims[1]),
+        norm=matplotlib.colors.LogNorm(
+            vmin=z_lims[0], 
+            vmax=z_lims[1]
+        ),
         cmap=cmap,
     )
     mesh2 = ax2.pcolormesh(
         nn, 
         DD, 
         R_2, 
-        norm=matplotlib.colors.LogNorm(vmin=z_lims[0], vmax=z_lims[1]),
+        norm=matplotlib.colors.LogNorm(
+            vmin=z_lims[0], 
+            vmax=z_lims[1]
+        ),
+        cmap=cmap,
+    )
+
+    ax1_top = ax1.twiny()
+    ax1_top.pcolormesh(
+        vv,
+        DD, 
+        R_200, 
+        norm=matplotlib.colors.LogNorm(
+            vmin=z_lims[0], 
+            vmax=z_lims[1]
+        ),
+        cmap=cmap,
+    )
+
+    ax2_top = ax2.twiny()
+    ax2_top.pcolormesh(
+        vv,
+        DD, 
+        R_2, 
+        norm=matplotlib.colors.LogNorm(
+            vmin=z_lims[0], 
+            vmax=z_lims[1]
+        ),
         cmap=cmap,
     )
 
@@ -2194,6 +2239,9 @@ def create_fig2_ax12(
     ax1.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
     ax2.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
 
+    ax1_top.set_xlabel(r'$\nu$')
+    ax2_top.set_xlabel(r'$\nu$')
+
     # ax2.tick_params(labelleft=False)
     tick_labels = ax1.get_xticks()
     tick_labels = list(tick_labels)
@@ -2202,7 +2250,17 @@ def create_fig2_ax12(
     tick_labels = list(tick_labels)
     ax2.set_xticks(tick_labels[2:])
 
+    v_ticks = [-1, -0.67, -1/2, -0.33]
+    v_tick_labels = ['1', '2/3', '1/2', '1/3']
+    ax1_top.set_xticks(v_ticks)
+    ax1_top.set_xticklabels(v_tick_labels)
+    ax2_top.set_xticks(v_ticks)
+    ax2_top.set_xticklabels(v_tick_labels)
+
     [set_ax_xlims(ax, x_lims) for ax in [ax1, ax2]]
+    [set_ax_xlims(ax, v_lims) for ax in [ax1_top, ax2_top]]
+
+    return ax1_top, ax2_top
 
 def create_fig2_ax3(
         ax3: matplotlib.axes.Axes,
@@ -2210,20 +2268,42 @@ def create_fig2_ax3(
         B_n_data: Data,
         cmap: matplotlib.colors.Colormap,
         corr_vec: list[float],
-) -> None:
+) -> matplotlib.axes.Axes:
     
     nn = B_n_data.nn + corr_vec[0]
     DD = B_n_data.DD - corr_vec[1]
     BB = B_n_data.Bperp
     R_array = B_n_data.Rxx_11_06 / R_Q
 
-    z_lims = (0.02, 200)
+    probe = '11_06'
+    n_to_12_v = get_v_conversion(probe)
+    vv = nn / np.abs(n_to_12_v)
+
+    z_lims = (0.03, 200) #(0.02, 200)
+    x_lims = (-4.95e12, -0.85e12)
+    v_lims = (x_lims[0] / np.abs(n_to_12_v), 
+              x_lims[1] / np.abs(n_to_12_v))
 
     mesh = ax3.pcolormesh(
         nn,
         BB,
         R_array,
-        norm=matplotlib.colors.LogNorm(vmin=z_lims[0], vmax=z_lims[1]),
+        norm=matplotlib.colors.LogNorm(
+            vmin=z_lims[0], 
+            vmax=z_lims[1]
+        ),
+        cmap=cmap,
+    )
+
+    ax3_top = ax3.twiny()
+    ax3_top.pcolormesh(
+        vv,
+        DD, 
+        R_array, 
+        norm=matplotlib.colors.LogNorm(
+            vmin=z_lims[0], 
+            vmax=z_lims[1]
+        ),
         cmap=cmap,
     )
 
@@ -2231,6 +2311,17 @@ def create_fig2_ax3(
     cbar.set_label(r'$R_{xx}$ [h/e$^2$]')
     ax3.set_xlabel(r'$n$ [$cm^{-2}$]')
     ax3.set_ylabel(r'$B$ [$T$]')
+
+    ax3_top.set_xlabel(r'$\nu$')
+    v_ticks = [-1, -0.67, -1/2, -0.33]
+    v_tick_labels = ['1', '2/3', '1/2', '1/3']
+    ax3_top.set_xticks(v_ticks)
+    ax3_top.set_xticklabels(v_tick_labels)
+
+    ax3.set_xlim(x_lims)
+    ax3_top.set_xlim(v_lims)
+
+    return ax3_top
 
 def create_fig2_ax4(
         ax4_1: matplotlib.axes.Axes,

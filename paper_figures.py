@@ -76,7 +76,7 @@ custom_xx_cmap = matplotlib.colors.LinearSegmentedColormap.from_list(
 Rxx_cmap = cm.inferno
 # Rxx_cmap = custom_xx_cmap
 Rxx_cmap.set_bad(color='grey')
-Rxy_cmap = cm.coolwarm
+Rxy_cmap = cm.PuOr#cm.coolwarm
 
 #### gate correction ####
 n_corr = get_n_correction(probe)
@@ -129,7 +129,44 @@ create_fig1_ax4(
 )
 
 add_minor_ticks(fig1)
+#%% fig 1 2d maps export
+fig_size = (8, 6)
+fig_xx = plt.figure(figsize=fig_size)
+fig_yy = plt.figure(figsize=fig_size)
 
+ax_xx = fig_xx.add_subplot(111)
+ax_yy = fig_yy.add_subplot(111)
+
+ax2_top, ax3_top = create_fig1_ax23(
+    ax_xx,
+    ax_yy,
+    None,
+    None,
+    # fig2_gg_map,
+    fig1_gg_map,
+    Rxx_cmap,
+    Rxy_cmap,
+    corr_vec,
+)
+
+add_minor_ticks(fig_xx, ax2_top)
+add_minor_ticks(fig_yy, ax3_top)
+
+fig_xx.savefig(
+    "fig_exports/fig1_xx_map.pdf", 
+    dpi=300, 
+    bbox_inches="tight", 
+    transparent=True,
+    backend='pdf',
+)
+
+fig_yy.savefig(
+    "fig_exports/fig1_yy_map.pdf", 
+    dpi=300, 
+    bbox_inches="tight", 
+    transparent=True,
+    backend='pdf',
+)
 #%% Fig 2
 fig2 = plt.figure(figsize=(16, 10))
 # gs = plt.GridSpec(10, 15, figure=fig2)
@@ -148,8 +185,8 @@ ax1 = fig2.add_subplot(gs[:40-hspace, :36])
 cax1 = fig2.add_subplot(gs[:40-hspace, 37:39])
 ax2 = fig2.add_subplot(gs[:40-hspace, 51:87])
 cax2 = fig2.add_subplot(gs[:40-hspace, 88:90])
-ax3 = fig2.add_subplot(gs[40+hspace:, :87])
-cax3 = fig2.add_subplot(gs[40+hspace:, 88:90])
+ax3 = fig2.add_subplot(gs[43+hspace:, :87])
+cax3 = fig2.add_subplot(gs[43+hspace:, 88:90])
 # ax4_1 = fig2.add_subplot(gs[:, 70:85])
 # ax4_2 = fig2.add_subplot(gs[:, 85:], sharey=ax4_1)
 
@@ -158,7 +195,7 @@ cax3 = fig2.add_subplot(gs[40+hspace:, 88:90])
 with open('fig2_gg_map.pickle', 'rb') as f:
     fig2_gg_map = pickle.load(f)
 
-create_fig2_ax12(
+ax1_top, ax2_top = create_fig2_ax12(
     ax1, 
     ax2, 
     cax1,
@@ -173,7 +210,7 @@ create_fig2_ax12(
 with open('B_n_data.pickle', 'rb') as f:
     B_n_data = pickle.load(f)
 
-create_fig2_ax3(
+ax3_top = create_fig2_ax3(
     ax3,
     cax3,
     B_n_data, 
@@ -203,7 +240,7 @@ create_fig2_ax3(
 # pos2 = ax4_2.get_position()
 # ax4_2.set_position([pos1.x1, pos2.y0, pos2.width, pos2.height])
 
-add_minor_ticks(fig2)
+add_minor_ticks(fig2, ax1_top, ax2_top, ax3_top)
 
 labels = ['a', 'b', 'c']
 
