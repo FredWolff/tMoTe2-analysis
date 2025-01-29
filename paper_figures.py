@@ -103,7 +103,7 @@ ax1.tick_params(labelbottom=False)
 
 # with open('fig2_gg_map.pickle', 'rb') as f:
 #     fig2_gg_map = pickle.load(f)
-with open('fig1_gg_map.pickle', 'rb') as f:
+with open('jar/fig1_gg_map.pickle', 'rb') as f:
     fig1_gg_map = pickle.load(f)
 
 create_fig1_ax23(
@@ -118,7 +118,7 @@ create_fig1_ax23(
     corr_vec,
 )
 
-with open('fig1_g_scan.pickle', 'rb') as f:
+with open('jar/fig1_g_scan.pickle', 'rb') as f:
     fig1_g_scan = pickle.load(f)
 
 create_fig1_ax4(
@@ -192,7 +192,7 @@ cax3 = fig2.add_subplot(gs[43+hspace:, 88:90])
 
 #### ax1 & ax2 ####
 
-with open('fig2_gg_map.pickle', 'rb') as f:
+with open('jar/fig2_gg_map.pickle', 'rb') as f:
     fig2_gg_map = pickle.load(f)
 
 ax1_top, ax2_top = create_fig2_ax12(
@@ -207,7 +207,7 @@ ax1_top, ax2_top = create_fig2_ax12(
 
 #### ax3 ####
 
-with open('B_n_data.pickle', 'rb') as f:
+with open('jar/B_n_data.pickle', 'rb') as f:
     B_n_data = pickle.load(f)
 
 ax3_top = create_fig2_ax3(
@@ -284,7 +284,7 @@ create_fig4_ax1(
 )
 # ax1.view_init(elev=10, azim=0)
 
-with open('B_n_data.pickle', 'rb') as f:
+with open('jar/B_n_data.pickle', 'rb') as f:
     B_n_data = pickle.load(f)
 
 create_fig4_ax1_ins(
@@ -300,7 +300,7 @@ create_fig4_ax1_ins(
 )
 
 #### ax2 & ax3 #### data from "discrete_v_B_dependence.py"
-with open('D_dependence_paper_plot.pickle', 'rb') as f:
+with open('jar/D_dependence_paper_plot.pickle', 'rb') as f:
     D_dependence_data = pickle.load(f)
 
 # x_, y_ = create_fig4_ax2_sns(ax2_1, ax2_2, D_dependence_data, color_1_2)
@@ -313,7 +313,7 @@ create_fig4_ax3(ax3, D_dependence_data, color_1_2)
 
 #### ax4 #### data from "Landau_fan_model_comparison.py"
 
-with open(f'probe_dependence_half_paper_plot.pickle', 'rb') as f:
+with open(f'jar/probe_dependence_half_paper_plot.pickle', 'rb') as f:
     probe_dependence_half = pickle.load(f)
 
 # We should also produce such a subplot for 2/3 to see if the anisotropy is 1/2-specific

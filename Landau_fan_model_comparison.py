@@ -268,7 +268,7 @@ def get_cut(Data_class: Data, attr_name: str) -> NDArray[np.float64]:
 if os.getcwd() != plot_path:
     os.chdir(plot_path)      
 
-with open('B_n_data.pickle', 'wb') as f:
+with open('jar/B_n_data.pickle', 'wb') as f:
     B_n_data = pickle.dump(Data_class, f)
 
 #%%
@@ -1286,7 +1286,7 @@ plot_data = {
     'R_array_19_20': R_array_19_20,
 }
 
-with open(f'probe_dependence_half_paper_plot.pickle', 'wb') as f:
+with open(f'jar/probe_dependence_half_paper_plot.pickle', 'wb') as f:
     pickle.dump(plot_data, f)
 
 # plt.plot(D_array_20_06 - D_correction, R_array_20_06, label='20_06')

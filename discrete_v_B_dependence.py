@@ -139,7 +139,7 @@ plot_data = {
     'n_post_correction': n_post_correction,
 }
 
-with open('D_dependence_paper_plot.pickle', 'wb') as f:
+with open('jar/D_dependence_paper_plot.pickle', 'wb') as f:
     pickle.dump(plot_data, f)
 
 if os.getcwd() != base_path:
@@ -647,7 +647,7 @@ fig2_gg_map.DD = DD
 if os.getcwd() != plot_path:
     os.chdir(plot_path)
 
-with open('fig2_gg_map.pickle', 'wb') as f:
+with open('jar/fig2_gg_map.pickle', 'wb') as f:
     pickle.dump(fig2_gg_map, f)
 
 os.chdir(base_path)
@@ -728,10 +728,10 @@ fig1_g_scan.DD = DD
 
 os.chdir(plot_path)
 
-with open('fig1_gg_map.pickle', 'wb') as f:
+with open('jar/fig1_gg_map.pickle', 'wb') as f:
     pickle.dump(fig1_gg_map, f)
 
-with open('fig1_g_scan.pickle', 'wb') as f:
+with open('jar/fig1_g_scan.pickle', 'wb') as f:
     pickle.dump(fig1_g_scan, f)
 
 os.chdir(base_path)
