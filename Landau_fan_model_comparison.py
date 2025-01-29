@@ -1289,9 +1289,150 @@ plot_data = {
 with open(f'jar/probe_dependence_half_paper_plot.pickle', 'wb') as f:
     pickle.dump(plot_data, f)
 
-# plt.plot(D_array_20_06 - D_correction, R_array_20_06, label='20_06')
-# plt.plot(D_array_06_11 - D_correction, R_array_06_11, label='06_11')
-# plt.plot(D_array_19_20 - D_correction, R_array_19_20, label='19_20')
+plt.title('1/2, n_uncorr = -2.51e12')
+plt.plot(D_array_20_06 - D_correction, R_array_20_06 / R_Q, label='20_06')
+plt.plot(D_array_06_11 - D_correction, R_array_06_11 / R_Q, label='06_11')
+plt.plot(D_array_19_20 - D_correction, R_array_19_20 / R_Q, label='19_20')
+plt.xlabel('D/$\epsilon_{0}$ [V/nm]')
+plt.ylabel('R$_{xx}$ [h/e$^2$]')
+plt.legend()
 
 # plt.xlim(-0.13, 0.13)
+# %% extract data for paper plot - directionality of two-thirds, n=3.15e12
+
+# n = 3.15e12
+#V_20_06 - #2539: (I+; B+). 2541: (I-; B+). #2587: (I+; B-). #2589: (I-; B-)
+#V_06_11 - #2357: (I+, B+). 2359: (I-, B+). #2405: (I+, B-). #2407: (I-, B-)
+#V_19_20 - #2175: (I+, B+). 2177: (I-, B+). #2223: (I+, B-). #2225: (I-, B-)
+
+V_20_06_indices = [2539, 2541, 2587, 2589]
+V_06_11_indices = [2357, 2359, 2405, 2407]
+V_19_20_indices = [2175, 2177, 2223, 2225]
+
+def cal_long_R(
+        V_lists: list[NDArray[np.float64]],
+        I_lists: list[NDArray[np.float64]]
+) -> NDArray[np.float64]:
+    
+    V_1, V_2, V_3, V_4 = V_lists
+    I_1, I_2, I_3, I_4 = I_lists
+
+    return (V_1 - V_2 + V_3 - V_4) / (I_1 - I_2 + I_3 - I_4)
+
+def get_vdp_data(id_list: list[int]) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+
+    V_lists = []
+    I_lists = []
+    for id in id_list:
+        data = load_by_id(id).get_parameter_data()
+        D_array = data['dmm_dc']['D_at_fixed_n']
+        V_lists.append(data['dmm_dc']['dmm_dc'])
+        I_lists.append(data['dmm3_dc']['dmm3_dc'])
+
+    R_array = cal_long_R(V_lists, I_lists)
+
+    return D_array, R_array
+
+D_array_20_06, R_array_20_06 = get_vdp_data(V_20_06_indices)
+D_array_06_11, R_array_06_11 = get_vdp_data(V_06_11_indices)
+D_array_19_20, R_array_19_20 = get_vdp_data(V_19_20_indices)
+
+# plot_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis/'
+# if os.getcwd() != plot_path:
+#     os.chdir(plot_path)
+
+# D_correction = -0.015
+
+# plot_data = {
+#     'D_correction': D_correction,
+#     'D_array_20_06': D_array_20_06,
+#     'R_array_20_06': R_array_20_06,
+#     'D_array_06_11': D_array_06_11,
+#     'R_array_06_11': R_array_06_11,
+#     'D_array_19_20': D_array_19_20,
+#     'R_array_19_20': R_array_19_20,
+# }
+
+# with open(f'jar/probe_dependence_half_paper_plot.pickle', 'wb') as f:
+#     pickle.dump(plot_data, f)
+
+D_correction = -0.015
+
+plt.title('2/3, n_uncorr = -3.15e12')
+plt.plot(D_array_20_06 - D_correction, R_array_20_06 / R_Q, label='20_06')
+plt.plot(D_array_06_11 - D_correction, R_array_06_11 / R_Q, label='06_11')
+plt.plot(D_array_19_20 - D_correction, R_array_19_20 / R_Q, label='19_20')
+plt.xlabel('D/$\epsilon_{0}$ [V/nm]')
+plt.ylabel('R$_{xx}$ [h/e$^2$]')
+plt.legend()
+
+# %% extract data for paper plot - directionality of two-thirds, n=3.35e12
+
+# n = 3.35e12
+#V_20_06 - #2533: (I+; B+). 2535: (I-; B+). #2581: (I+; B-). #2583: (I-; B-)
+#V_06_11 - #2351: (I+, B+). 2353: (I-, B+). #2399: (I+, B-). #2401: (I-, B-)
+#V_19_20 - #2169: (I+, B+). 2171: (I-, B+). #2217: (I+, B-). #2219: (I-, B-)
+
+V_20_06_indices = [2533, 2535, 2581, 2583]
+V_06_11_indices = [2351, 2353, 2399, 2401]
+V_19_20_indices = [2169, 2171, 2217, 2219]
+
+def cal_long_R(
+        V_lists: list[NDArray[np.float64]],
+        I_lists: list[NDArray[np.float64]]
+) -> NDArray[np.float64]:
+    
+    V_1, V_2, V_3, V_4 = V_lists
+    I_1, I_2, I_3, I_4 = I_lists
+
+    return (V_1 - V_2 + V_3 - V_4) / (I_1 - I_2 + I_3 - I_4)
+
+def get_vdp_data(id_list: list[int]) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+
+    V_lists = []
+    I_lists = []
+    for id in id_list:
+        data = load_by_id(id).get_parameter_data()
+        D_array = data['dmm_dc']['D_at_fixed_n']
+        V_lists.append(data['dmm_dc']['dmm_dc'])
+        I_lists.append(data['dmm3_dc']['dmm3_dc'])
+
+    R_array = cal_long_R(V_lists, I_lists)
+
+    return D_array, R_array
+
+D_array_20_06, R_array_20_06 = get_vdp_data(V_20_06_indices)
+D_array_06_11, R_array_06_11 = get_vdp_data(V_06_11_indices)
+D_array_19_20, R_array_19_20 = get_vdp_data(V_19_20_indices)
+
+# plot_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis/'
+# if os.getcwd() != plot_path:
+#     os.chdir(plot_path)
+
+# D_correction = -0.015
+
+# plot_data = {
+#     'D_correction': D_correction,
+#     'D_array_20_06': D_array_20_06,
+#     'R_array_20_06': R_array_20_06,
+#     'D_array_06_11': D_array_06_11,
+#     'R_array_06_11': R_array_06_11,
+#     'D_array_19_20': D_array_19_20,
+#     'R_array_19_20': R_array_19_20,
+# }
+
+# with open(f'jar/probe_dependence_half_paper_plot.pickle', 'wb') as f:
+#     pickle.dump(plot_data, f)
+
+D_correction = -0.015
+
+plt.title('2/3, n_uncorr = -3.35e12')
+plt.plot(D_array_20_06 - D_correction, R_array_20_06 / R_Q, label='20_06')
+plt.plot(D_array_06_11 - D_correction, R_array_06_11 / R_Q, label='06_11')
+plt.plot(D_array_19_20 - D_correction, R_array_19_20 / R_Q, label='19_20')
+plt.xlabel('D/$\epsilon_{0}$ [V/nm]')
+plt.ylabel('R$_{xx}$ [h/e$^2$]')
+plt.legend()
+
+
 # %%
