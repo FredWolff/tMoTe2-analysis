@@ -12,9 +12,18 @@ import matplotlib.cm as cm
 import matplotlib
 import sys
 import pickle
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 # matplotlib.use('pdf')
-matplotlib.rc('font', family='arial')
+matplotlib.rc('font', family='arial', size=16)
+matplotlib.rcParams['xtick.minor.size'] = 2.5
+matplotlib.rcParams['ytick.minor.size'] = 2.5
+
+ppi = 72
+inch_to_cm = 2.54
+ppcm = ppi/inch_to_cm
+fig_width_pt = 515 #pt
+fig_width_cm = fig_width_pt/ppcm
 
 import_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis'
 sys.path.append(import_path)
@@ -32,11 +41,11 @@ plt.style.context('seaborn-paper')
 probe = '11_06'
 
 # color_1_3 = '#DC143C' # crimson
-color_1_3 = '#32CD32' # limegreen
+color_1_3 = rgb_to_hex(np.array([255, 85, 85]))#'red'#'#32CD32' # limegreen
 # color_1_2 = '#00FFFF' # cyan
-color_1_2 = '#00bfff' # deep sky blue
+color_1_2 = rgb_to_hex(np.array([0, 170, 255]))#'#4682B4' # steelblue '#00bfff' # deep sky blue
 # color_2_3 = '#EE82EE' # violet
-color_2_3 = '#9400d3' # darkviolet
+color_2_3 = rgb_to_hex(np.array([255, 191, 33]))#'orange'#'#9400d3' # darkviolet
 
 filling_colors = {
     'one_third': color_1_3, 
@@ -44,9 +53,9 @@ filling_colors = {
     'two_thirds': color_2_3
 }
 
-color_20_06 = 'saddlebrown'#'#4682B4' # steelblue 
-color_06_11 = 'red'#'grey'#'#FF4500' # orangered
-color_19_20 = 'orange'#'black'#'#FFD700' # gold
+color_20_06 = 'black'#'#4682B4' # steelblue 
+color_06_11 = 'lime'#'grey'#'#FF4500' # orangered
+color_19_20 = 'forestgreen'#'black'#'#FFD700' # gold
 
 probe_colors = [color_20_06, color_06_11, color_19_20]
 
@@ -64,8 +73,8 @@ linestyle_list = [linestyle_20_06, linestyle_06_11, linestyle_19_20]
 filling_list = []
 
 shape_1_3 = 'o'
-shape_1_2 = 's'
-shape_2_3 = '^'
+shape_1_2 = 'o'#'s'
+shape_2_3 = 'o'#'^'
 
 shape_list = [shape_1_3, shape_1_2, shape_2_3]
 
@@ -80,7 +89,7 @@ Rxy_cmap = cm.PuOr#cm.coolwarm
 
 #### gate correction ####
 n_corr = get_n_correction(probe)
-with open(f'probe_dependence_half_paper_plot.pickle', 'rb') as f:
+with open(f'jar/probe_dependence_half_paper_plot.pickle', 'rb') as f:
     probe_dependence_half = pickle.load(f)
 uni_D_corr = probe_dependence_half['D_correction']
 
@@ -168,7 +177,7 @@ fig_yy.savefig(
     backend='pdf',
 )
 #%% Fig 2
-fig2 = plt.figure(figsize=(16, 10))
+fig2 = plt.figure(figsize=(fig_width_cm, 14))
 # gs = plt.GridSpec(10, 15, figure=fig2)
 # ax1 = fig2.add_subplot(gs[:4, :4])
 # ax2 = fig2.add_subplot(gs[:4, 4:8], sharey=ax1)
@@ -181,12 +190,12 @@ fig2 = plt.figure(figsize=(16, 10))
 hspace = 4
 
 gs = plt.GridSpec(100, 100, figure=fig2)
-ax1 = fig2.add_subplot(gs[:40-hspace, :36])
-cax1 = fig2.add_subplot(gs[:40-hspace, 37:39])
-ax2 = fig2.add_subplot(gs[:40-hspace, 51:87])
-cax2 = fig2.add_subplot(gs[:40-hspace, 88:90])
-ax3 = fig2.add_subplot(gs[43+hspace:, :87])
-cax3 = fig2.add_subplot(gs[43+hspace:, 88:90])
+ax1 = fig2.add_subplot(gs[:43-hspace, :40])
+# cax1 = fig2.add_subplot(gs[:40-hspace, 37:39])
+ax2 = fig2.add_subplot(gs[:43-hspace, 47:87])
+cax2 = fig2.add_subplot(gs[20:80, 88:89])
+ax3 = fig2.add_subplot(gs[46+hspace:, :87])
+# cax3 = fig2.add_subplot(gs[43+hspace:, 88:90])
 # ax4_1 = fig2.add_subplot(gs[:, 70:85])
 # ax4_2 = fig2.add_subplot(gs[:, 85:], sharey=ax4_1)
 
@@ -198,7 +207,6 @@ with open('jar/fig2_gg_map.pickle', 'rb') as f:
 ax1_top, ax2_top = create_fig2_ax12(
     ax1, 
     ax2, 
-    cax1,
     cax2,
     fig2_gg_map, 
     Rxx_cmap,
@@ -212,7 +220,7 @@ with open('jar/B_n_data.pickle', 'rb') as f:
 
 ax3_top = create_fig2_ax3(
     ax3,
-    cax3,
+    # cax3,
     B_n_data, 
     Rxx_cmap,
     corr_vec,
@@ -240,16 +248,45 @@ ax3_top = create_fig2_ax3(
 # pos2 = ax4_2.get_position()
 # ax4_2.set_position([pos1.x1, pos2.y0, pos2.width, pos2.height])
 
-add_minor_ticks(fig2, ax1_top, ax2_top, ax3_top)
+# add_minor_ticks(fig2, ax1_top, ax2_top, ax3_top)
 
-labels = ['a', 'b', 'c']
+labels = ['(a)', '(b)']
 
-for ax, label in zip([ax1, ax2, ax3], labels):
-    ax.text(-0.1, 1.1, label, transform=ax.transAxes, fontsize=18, fontweight='bold', va='top', ha='left')
+for ax, label in zip([ax1, ax2], labels):
+    ax.text(
+        0.02, 
+        0.95, 
+        label, 
+        transform=ax.transAxes, 
+        fontsize=16, 
+        va='top', 
+        ha='left'
+    )
+
+ax3.text(
+    0.02, 
+    0.95, 
+    '(c)', 
+    color='white',
+    transform=ax3.transAxes, 
+    fontsize=16, 
+    va='top', 
+    ha='left',
+)
+
+
+
+# fig2.savefig(
+#     "fig_exports/fig2.pdf", 
+#     dpi=300, 
+#     bbox_inches="tight", 
+#     transparent=True,
+#     backend='pdf',
+# )
 
 #%% Fig 4
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-fig4 = plt.figure( figsize=(16, 10) )
+
+fig4 = plt.figure(figsize=(fig_width_cm, 8))
 
 gs = plt.GridSpec(100, 100, figure=fig4)
 ax1 = fig4.add_subplot(gs[:, :58])
@@ -259,8 +296,8 @@ ax1_ins = inset_axes(ax1, width="60%", height="25%", loc=3, borderpad=1)
 
 # ax2_2.sharex(ax2_1)
 
-ax3 = fig4.add_subplot(gs[:36, 64:])
-ax4 = fig4.add_subplot(gs[44:, 64:])
+ax3 = fig4.add_subplot(gs[:44, 64:])
+ax4 = fig4.add_subplot(gs[56:, 64:])
 
 #### ax1 #### data from "discrete_v_B_dependence.py"
 with open('jar/B_dependence_one_third_paper_plot.pickle', 'rb') as f:
@@ -326,7 +363,7 @@ create_fig4_ax4(
 
 #### axes settings ####
 
-add_minor_ticks(fig4)
+# add_minor_ticks(fig4)
 
 # pos1 = ax2_1.get_position()
 # pos2 = ax2_2.get_position()
@@ -334,21 +371,28 @@ add_minor_ticks(fig4)
 
 # plt.tight_layout()
 
-labels = ['a', 'b', 'c']
+labels = ['(a)', '(b)', '(c)']
 
 for ax, label in zip([ax1, ax3, ax4], labels):
     ax.text(
-        -0.1, 
-        1.1, 
+        0.02, 
+        0.95,
         label, 
         transform=ax.transAxes, 
-        fontsize=18, 
-        fontweight='bold', 
+        # fontsize=16,
         va='top', 
         ha='left'
     )
 
 # ax1_ins.tick_params(labelleft=False, labelbottom=False)
+
+# fig4.savefig(
+#     "fig_exports/fig4.pdf", 
+#     dpi=300, 
+#     bbox_inches="tight", 
+#     transparent=True,
+#     backend='pdf',
+# )
 
 #%% export figure
 fig4.savefig('fig4.png', dpi=300, bbox_inches='tight')

@@ -2,7 +2,7 @@ from typing import Union, Optional
 import qcodes as qc
 from qcodes.dataset import load_by_id
 import matplotlib.pyplot as plt
-from matplotlib.ticker import AutoMinorLocator
+from matplotlib.ticker import AutoMinorLocator, ScalarFormatter, MultipleLocator
 import  matplotlib
 import os
 import numpy as np
@@ -2095,12 +2095,12 @@ def create_fig1_ax23(
 
     cbar1 = plt.colorbar(mesh1, cax=cax2)
     cbar2 = plt.colorbar(mesh2, cax=cax3)
-    cbar1.set_label(r'$R_{xx}$ [h/e$^2$]')
-    cbar2.set_label(r'$R_{xy}$ [h/e$^2$]')
-    ax2.set_xlabel(r'$n$ [$cm^{-2}$]')
-    ax3.set_xlabel(r'$n$ [$cm^{-2}$]')
-    ax2.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
-    ax3.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
+    cbar1.set_label(r'$R_{xx}$ (h/e$^2$)')
+    cbar2.set_label(r'$R_{xy}$ (h/e$^2$)')
+    ax2.set_xlabel(r'$n$ (cm$^{-2}$)')
+    ax3.set_xlabel(r'$n$ (cm$^{-2}$)')
+    ax2.set_ylabel(r'$D/\epsilon_0$ (V/nm)')
+    ax3.set_ylabel(r'$D/\epsilon_0$ (V/nm)')
 
     ax2_top.set_xlabel(r'$\nu$')
     ax3_top.set_xlabel(r'$\nu$')
@@ -2138,8 +2138,8 @@ def create_fig1_ax4(
     Rxx_color, Rxy_color = R_color_list
 
     ax4_xy.plot(nn, -Rxy_11_19, color=Rxy_color)
-    ax4_xy.set_xlabel(r'$n$ [$cm^{-2}$]')
-    ax4_xy.set_ylabel(r'$R_{xy}$ [h/e$^2$]')
+    ax4_xy.set_xlabel(r'$n$ (cm$^{-2}$)')
+    ax4_xy.set_ylabel(r'$R_{xy}$ (h/e$^2$)')
     ax4_xy.yaxis.label.set_color(Rxy_color)
     ax4_xy.tick_params(axis='y', colors=Rxy_color)
 
@@ -2164,7 +2164,6 @@ def create_fig2_ax12(
         ax1: matplotlib.axes.Axes,
         ax2: matplotlib.axes.Axes,
         cax2: matplotlib.axes.Axes,
-        cax1: matplotlib.axes.Axes,
         fig2_gg_map: Data,
         cmap: matplotlib.colors.Colormap,
         corr_vec: list[float],
@@ -2194,6 +2193,7 @@ def create_fig2_ax12(
             vmax=z_lims[1]
         ),
         cmap=cmap,
+        rasterized=True,
     )
     mesh2 = ax2.pcolormesh(
         nn, 
@@ -2204,6 +2204,7 @@ def create_fig2_ax12(
             vmax=z_lims[1]
         ),
         cmap=cmap,
+        rasterized=True,
     )
 
     ax1_top = ax1.twiny()
@@ -2216,6 +2217,7 @@ def create_fig2_ax12(
             vmax=z_lims[1]
         ),
         cmap=cmap,
+        rasterized=True,
     )
 
     ax2_top = ax2.twiny()
@@ -2228,16 +2230,19 @@ def create_fig2_ax12(
             vmax=z_lims[1]
         ),
         cmap=cmap,
+        rasterized=True,
     )
 
-    cbar1 = plt.colorbar(mesh1, cax=cax1)
+    # cbar1 = plt.colorbar(mesh1, cax=cax1)
     cbar2 = plt.colorbar(mesh2, cax=cax2)
-    cbar1.set_label(r'$R_{xx}$ [h/e$^2$]')
-    cbar2.set_label(r'$R_{xx}$ [h/e$^2$]')
-    ax1.set_xlabel(r'$n$ [$cm^{-2}$]')
-    ax2.set_xlabel(r'$n$ [$cm^{-2}$]')
-    ax1.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
-    ax2.set_ylabel(r'$D/\epsilon_0$ [$V/nm$]')
+    # cbar1.set_label(r'$R_{xx}$ (h/e$^2$)')
+    cbar2.set_label(r'$R_{xx}$ (h/e$^2$)')
+    ax1.set_xlabel(r'$n$ (cm$^{-2}$)')
+    ax2.set_xlabel(r'$n$ (cm$^{-2}$)')
+    ax1.set_ylabel(r'$D/\epsilon_0$ (V/nm)')
+    ax2.set_ylabel(r'$D/\epsilon_0$ (V/nm)')
+    ax1.set_ylim(-0.35, 0.35)
+    ax2.set_ylim(-0.35, 0.35)
 
     ax1_top.set_xlabel(r'$\nu$')
     ax2_top.set_xlabel(r'$\nu$')
@@ -2246,9 +2251,15 @@ def create_fig2_ax12(
     tick_labels = ax1.get_xticks()
     tick_labels = list(tick_labels)
     ax1.set_xticks(tick_labels[2:])
+    ax1.xaxis.set_minor_locator(MultipleLocator(0.5e12))
+    ax1.set_yticks([-0.2, 0, 0.2])
+    ax1.yaxis.set_minor_locator(MultipleLocator(0.1))
     tick_labels = ax2.get_xticks()
     tick_labels = list(tick_labels)
     ax2.set_xticks(tick_labels[2:])
+    ax2.xaxis.set_minor_locator(MultipleLocator(0.5e12))
+    ax2.set_yticks([-0.2, 0, 0.2])
+    ax2.yaxis.set_minor_locator(MultipleLocator(0.1))
 
     v_ticks = [-1, -0.67, -1/2, -0.33]
     v_tick_labels = ['1', '2/3', '1/2', '1/3']
@@ -2257,6 +2268,9 @@ def create_fig2_ax12(
     ax2_top.set_xticks(v_ticks)
     ax2_top.set_xticklabels(v_tick_labels)
 
+    ax1_top.hlines(0.12, -1.5, -1.11, color='limegreen', linewidth=5)
+    ax2_top.hlines(0.12, -1.5, -1.11, color='dodgerblue', linewidth=5)
+
     [set_ax_xlims(ax, x_lims) for ax in [ax1, ax2]]
     [set_ax_xlims(ax, v_lims) for ax in [ax1_top, ax2_top]]
 
@@ -2264,7 +2278,7 @@ def create_fig2_ax12(
 
 def create_fig2_ax3(
         ax3: matplotlib.axes.Axes,
-        cax3: matplotlib.axes.Axes,
+        # cax3: matplotlib.axes.Axes,
         B_n_data: Data,
         cmap: matplotlib.colors.Colormap,
         corr_vec: list[float],
@@ -2293,6 +2307,7 @@ def create_fig2_ax3(
             vmax=z_lims[1]
         ),
         cmap=cmap,
+        rasterized=True,
     )
 
     ax3_top = ax3.twiny()
@@ -2305,18 +2320,38 @@ def create_fig2_ax3(
             vmax=z_lims[1]
         ),
         cmap=cmap,
+        rasterized=True,
     )
 
-    cbar = plt.colorbar(mesh, cax=cax3)
-    cbar.set_label(r'$R_{xx}$ [h/e$^2$]')
-    ax3.set_xlabel(r'$n$ [$cm^{-2}$]')
-    ax3.set_ylabel(r'$B$ [$T$]')
+    # cbar = plt.colorbar(mesh, cax=cax3)
+    # cbar.set_label(r'$R_{xx}$ (h/e$^2$)')
+    ax3.set_xlabel(r'$n$ (cm$^{-2}$)')
+    ax3.set_ylabel(r'$B$ (T)')
+    ax3.set_xticks([-4e12, -3e12, -2e12, -1e12])
+    ax3.xaxis.set_minor_locator(MultipleLocator(0.5e12))
+    ax3.set_yticks([0, 1, 2])
+    ax3.yaxis.set_minor_locator(MultipleLocator(0.5))
 
     ax3_top.set_xlabel(r'$\nu$')
     v_ticks = [-1, -0.67, -1/2, -0.33]
     v_tick_labels = ['1', '2/3', '1/2', '1/3']
     ax3_top.set_xticks(v_ticks)
     ax3_top.set_xticklabels(v_tick_labels)
+
+    ax3.hlines(
+        0.2, 
+        -5e12, 
+        -4.75e12, 
+        color='limegreen', 
+        linewidth=5, 
+    )
+    ax3.hlines(
+        2, 
+        -5e12, 
+        -4.75e12, 
+        color='dodgerblue', 
+        linewidth=5,
+    )
 
     ax3.set_xlim(x_lims)
     ax3_top.set_xlim(v_lims)
@@ -2368,9 +2403,9 @@ def create_fig2_ax4(
         )
 
     ax4_2.tick_params(labelleft=False)
-    ax4_1.set_xlabel(r'$n$ [$cm^{-2}$]')
-    ax4_2.set_xlabel(r'$n$ [$cm^{-2}$]')
-    ax4_1.set_ylabel(r'$R_{xx}$ [h/e$^2$]')
+    ax4_1.set_xlabel(r'$n$ (cm$^{-2}$)')
+    ax4_2.set_xlabel(r'$n$ (cm$^{-2}$)')
+    ax4_1.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
     ax4_1.set_ylim(ylims)
     ax4_2.set_ylim(ylims)
     ax4_1.set_yscale('log')
@@ -2416,6 +2451,8 @@ def create_fig4_ax1(
         capthick=2,
         capsize=8,
         elinewidth=1.5,
+        markeredgecolor='black',
+        markeredgewidth=1.5,
     )
 
     ax1.errorbar(
@@ -2428,6 +2465,8 @@ def create_fig4_ax1(
         capthick=2,
         capsize=8,
         elinewidth=1.5,
+        markeredgecolor='black',
+        markeredgewidth=1.5,
     )
 
     ax1.errorbar(
@@ -2440,6 +2479,8 @@ def create_fig4_ax1(
         capthick=2,
         capsize=8,
         elinewidth=1.5,
+        markeredgecolor='black',
+        markeredgewidth=1.5,
     )
 
     B_lim = np.array([-0.05, 4.1])
@@ -2490,10 +2531,16 @@ def create_fig4_ax1(
         color=color_list[2],
     )
     
-    ax1.legend(loc='best')
-    ax1.set_xlabel(r'$\delta n$ [$cm^{-2}]$')
-    ax1.set_ylabel(r'$B$ [$T$]')
+    ax1.xaxis.set_major_locator(MultipleLocator(1e11))
+    ax1.xaxis.set_minor_locator(MultipleLocator(.5e11))
+    ax1.yaxis.set_major_locator(MultipleLocator(1))
+    ax1.yaxis.set_minor_locator(MultipleLocator(.5))
+
+    ax1.legend(loc='center left')
+    ax1.set_xlabel(r'$\delta n$ (cm$^{-2}$)')
+    ax1.set_ylabel(r'$B$ (T)')
     ax1.set_ylim(-0.05, 4.1)
+
 
 def create_fig4_ax1_ins(
         ax1_ins: matplotlib.axes.Axes,
@@ -2526,6 +2573,7 @@ def create_fig4_ax1_ins(
         R_array,
         norm=matplotlib.colors.LogNorm(vmin=z_lims[0], vmax=z_lims[1]),
         cmap=cmap,
+        rasterized=True,
     )
 
     B_lim = np.array([-0.05, 2.5])
@@ -2621,10 +2669,10 @@ def create_fig4_ax2(
 
     ax2_1.set_xlim(0.12, 0.25)
     ax2_2.set_xlim(0.12, 0.25)
-    ax2_1.set_ylabel(r'$a_1$ [$(cm·T)^{-2}$]')
-    ax2_2.set_ylabel(r'$a_2$ [$cm^{-2}$]')
-    ax2_1.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
-    ax2_2.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
+    ax2_1.set_ylabel(r'$a_1$ ((cm·T)$^{-2}$)')
+    ax2_2.set_ylabel(r'$a_2$ (cm$^{-2}$)')
+    ax2_1.set_xlabel(r'$D/\epsilon_0$ (V/nm)')
+    ax2_2.set_xlabel(r'$D/\epsilon_0$ (V/nm)')
 
 def create_fig4_ax2_sns(
         ax2_1: matplotlib.axes.Axes,
@@ -2680,10 +2728,10 @@ def create_fig4_ax2_sns(
 
     ax2_1.set_xlim(0.12, 0.245)
     ax2_2.set_xlim(0.12, 0.245)
-    ax2_1.set_ylabel(r'$a_1$ [$(cm·T)^{-2}$]')
-    ax2_2.set_ylabel(r'$a_2$ [$cm^{-2}$]')
+    ax2_1.set_ylabel(r'$a_1$ ((cm·T)$^{-2}$)')
+    ax2_2.set_ylabel(r'$a_2$ (cm$^{-2}$)')
     # ax2_1.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
-    ax2_2.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
+    ax2_2.set_xlabel(r'$D/\epsilon_0$ (V/nm)')
 
     ax2_1.tick_params(labelbottom=False)
     # ax2_2.yaxis.get_offset_text().set_transform(ax2_2.transData)
@@ -2724,15 +2772,18 @@ def create_fig4_ax3(
             line_handles[-1],
         ], 
         labels=[
-            f'$D/\epsilon_{0}$ = {D_list[0]:.3f}', 
-            f'$D/\epsilon_{0}$ = {D_list[len(D_list)//2]:.3f}',
-            f'$D/\epsilon_{0}$ = {D_list[-1]:.3f}',
+            f'$D/\epsilon_{0}$ = {D_list[0]:.3f} V/nm', 
+            f'$D/\epsilon_{0}$ = {D_list[len(D_list)//2]:.3f} V/nm',
+            f'$D/\epsilon_{0}$ = {D_list[-1]:.3f} V/nm',
         ]
     )
 
+    ax3.xaxis.set_minor_locator(MultipleLocator(.5e11))
+    ax3.yaxis.set_minor_locator(MultipleLocator(.5))
+
     ax3.set_ylim(0, 4)
-    ax3.set_ylabel(r'$B$ [$T$]')
-    ax3.set_xlabel(r'$n$ [$cm^{-2}$]')
+    ax3.set_ylabel(r'$B$ (T)')
+    ax3.set_xlabel(r'$n$ (cm$^{-2}$)')
 
 def create_fig4_ax4(
         ax4: matplotlib.axes.Axes,
@@ -2774,11 +2825,11 @@ def create_fig4_ax4(
         linewidth=2,
     )
 
-    # ax4.hlines(0, -0.15, 0.15, color='black')
+    ax4.xaxis.set_minor_locator(MultipleLocator(.025))
+    ax4.yaxis.set_minor_locator(MultipleLocator(1))
 
-    # ax4.legend()
-    ax4.set_ylabel(r'$R_{xx}$ [$h/e^2]$')
-    ax4.set_xlabel(r'$D/\epsilon_0$ [$V/nm$]')
+    ax4.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
+    ax4.set_xlabel(r'$D/\epsilon_0$ (V/nm)')
     ax4.set_xlim(-0.13, 0.13)
     ax4.set_ylim(0, 10.5)
 
@@ -2788,6 +2839,9 @@ def hex_to_rgb(hex_str):
     g = int(hex_str[2:4], 16)
     b = int(hex_str[4:6], 16)
     return np.array([r, g, b])
+
+def rgb_to_hex(rgb: NDArray[np.float64]) -> str:
+    return "#{:02X}{:02X}{:02X}".format(rgb[0], rgb[1], rgb[2])
 
 def generate_con_color(
         input_color_hex: str,
@@ -2799,8 +2853,9 @@ def generate_con_color(
 
     input_rgb = hex_to_rgb(input_color_hex) / 255
     teal = '#008080'
+    mnblue = '191970'
     # asymptote_rgb = input_rgb / 4
-    asymptote_rgb = hex_to_rgb(teal) / 255
+    asymptote_rgb = hex_to_rgb(mnblue) / 255
 
     colorlist = [(1 - i / (num_colors - 1)) * asymptote_rgb 
                 + (i / (num_colors - 1)) * input_rgb for i in range(num_colors)]
