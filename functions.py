@@ -2241,8 +2241,8 @@ def create_fig2_ax12(
     ax2.set_xlabel(r'$n$ (cm$^{-2}$)')
     ax1.set_ylabel(r'$D/\epsilon_0$ (V/nm)')
     ax2.set_ylabel(r'$D/\epsilon_0$ (V/nm)')
-    ax1.set_ylim(-0.35, 0.35)
-    ax2.set_ylim(-0.35, 0.35)
+    ax1.set_ylim(-0.25, 0.25)
+    ax2.set_ylim(-0.25, 0.25)
 
     ax1_top.set_xlabel(r'$\nu$')
     ax2_top.set_xlabel(r'$\nu$')
@@ -2289,9 +2289,13 @@ def create_fig2_ax3(
     BB = B_n_data.Bperp
     R_array = B_n_data.Rxx_11_06 / R_Q
 
+    nn_double = np.concatenate((nn, nn), axis=0)
+    BB_double = np.concatenate((BB, np.flip(-BB, axis=0)), axis=0)
+    R_double = np.concatenate((R_array, np.flip(R_array, axis=0)), axis=0)
+
     probe = '11_06'
     n_to_12_v = get_v_conversion(probe)
-    vv = nn / np.abs(n_to_12_v)
+    vv = nn_double / np.abs(n_to_12_v)
 
     z_lims = (0.03, 200) #(0.02, 200)
     x_lims = (-4.95e12, -0.85e12)
@@ -2299,28 +2303,30 @@ def create_fig2_ax3(
               x_lims[1] / np.abs(n_to_12_v))
 
     mesh = ax3.pcolormesh(
-        nn,
-        BB,
-        R_array,
+        nn_double,
+        BB_double,
+        R_double,
         norm=matplotlib.colors.LogNorm(
             vmin=z_lims[0], 
             vmax=z_lims[1]
         ),
         cmap=cmap,
         rasterized=True,
+        zorder=2,
     )
 
     ax3_top = ax3.twiny()
     ax3_top.pcolormesh(
         vv,
-        DD, 
-        R_array, 
+        BB_double,
+        R_double,
         norm=matplotlib.colors.LogNorm(
             vmin=z_lims[0], 
             vmax=z_lims[1]
         ),
         cmap=cmap,
         rasterized=True,
+        zorder=2,
     )
 
     # cbar = plt.colorbar(mesh, cax=cax3)
@@ -2329,7 +2335,7 @@ def create_fig2_ax3(
     ax3.set_ylabel(r'$B$ (T)')
     ax3.set_xticks([-4e12, -3e12, -2e12, -1e12])
     ax3.xaxis.set_minor_locator(MultipleLocator(0.5e12))
-    ax3.set_yticks([0, 1, 2])
+    ax3.yaxis.set_major_locator(MultipleLocator(1))
     ax3.yaxis.set_minor_locator(MultipleLocator(0.5))
 
     ax3_top.set_xlabel(r'$\nu$')
@@ -2338,19 +2344,21 @@ def create_fig2_ax3(
     ax3_top.set_xticks(v_ticks)
     ax3_top.set_xticklabels(v_tick_labels)
 
-    ax3.hlines(
+    ax3_top.hlines(
         0.2, 
-        -5e12, 
-        -4.75e12, 
+        -1.5, 
+        -1.15,
         color='limegreen', 
         linewidth=5, 
+        zorder=3,
     )
-    ax3.hlines(
+    ax3_top.hlines(
         2, 
-        -5e12, 
-        -4.75e12, 
+        -1.5, 
+        -1.15,
         color='dodgerblue', 
         linewidth=5,
+        zorder=3,
     )
 
     ax3.set_xlim(x_lims)
