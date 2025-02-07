@@ -2536,7 +2536,7 @@ def create_fig4_ax1(
     ax1.yaxis.set_major_locator(MultipleLocator(1))
     ax1.yaxis.set_minor_locator(MultipleLocator(.5))
 
-    ax1.legend(loc='center left')
+    ax1.legend(loc='center left', title=r'$\nu$')
     ax1.set_xlabel(r'$\delta n$ (cm$^{-2}$)')
     ax1.set_ylabel(r'$B$ (T)')
     ax1.set_ylim(-0.05, 4.1)
@@ -2633,8 +2633,8 @@ def create_fig4_ax1_ins(
     ax1_ins.set_yticks([])
     ax1_ins.set_xlim(x_lims)
     ax1_ins.set_ylim(np.min(BB), np.max(BB))
-    # ax1_ins.set_xlabel(r'$n$ [$cm^{-2}$]')
-    # ax1_ins.set_ylabel(r'$B$ [$T$]')
+    ax1_ins.set_xlabel(r'$\nu$')
+    ax1_ins.set_ylabel(r'$B$ (T)')
 
 def create_fig4_ax2(
     ax2_1: matplotlib.axes.Axes,
@@ -2772,10 +2772,11 @@ def create_fig4_ax3(
             line_handles[-1],
         ], 
         labels=[
-            f'$D/\epsilon_{0}$ = {D_list[0]:.3f} V/nm', 
-            f'$D/\epsilon_{0}$ = {D_list[len(D_list)//2]:.3f} V/nm',
-            f'$D/\epsilon_{0}$ = {D_list[-1]:.3f} V/nm',
-        ]
+            f'{D_list[0]:.2f} V/nm', 
+            f'{D_list[len(D_list)//2 - 3]:.2f} V/nm',
+            f'{D_list[-6]:.2f} V/nm',
+        ],
+        title=r'$D/\epsilon_{0}$',
     )
 
     ax3.xaxis.set_minor_locator(MultipleLocator(.5e11))

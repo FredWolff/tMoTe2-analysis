@@ -274,15 +274,13 @@ ax3.text(
     ha='left',
 )
 
-
-
-# fig2.savefig(
-#     "fig_exports/fig2.pdf", 
-#     dpi=300, 
-#     bbox_inches="tight", 
-#     transparent=True,
-#     backend='pdf',
-# )
+fig2.savefig(
+    "fig_exports/fig2.pdf", 
+    dpi=300, 
+    bbox_inches="tight", 
+    transparent=True,
+    backend='pdf',
+)
 
 #%% Fig 4
 
@@ -290,7 +288,7 @@ fig4 = plt.figure(figsize=(fig_width_cm, 8))
 
 gs = plt.GridSpec(100, 100, figure=fig4)
 ax1 = fig4.add_subplot(gs[:, :58])
-ax1_ins = inset_axes(ax1, width="60%", height="25%", loc=3, borderpad=1)
+ax1_ins = inset_axes(ax1, width="55%", height="25%", loc=3, borderpad=2)
 # ax2_2 = fig4.add_subplot(gs[83:, 0:58])
 # ax2_1 = fig4.add_subplot(gs[63:80, 0:58])
 
@@ -386,13 +384,13 @@ for ax, label in zip([ax1, ax3, ax4], labels):
 
 # ax1_ins.tick_params(labelleft=False, labelbottom=False)
 
-# fig4.savefig(
-#     "fig_exports/fig4.pdf", 
-#     dpi=300, 
-#     bbox_inches="tight", 
-#     transparent=True,
-#     backend='pdf',
-# )
+fig4.savefig(
+    "fig_exports/fig4.pdf", 
+    dpi=300, 
+    bbox_inches="tight", 
+    transparent=True,
+    backend='pdf',
+)
 
 #%% export figure
 fig4.savefig('fig4.png', dpi=300, bbox_inches='tight')
