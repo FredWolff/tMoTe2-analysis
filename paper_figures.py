@@ -264,10 +264,10 @@ for ax, label in zip([ax1, ax2], labels):
     )
 
 ax3_top.text(
-    0, 
-    1.08, 
+    0.01, 
+    0.97, 
     '(c)', 
-    color='black',
+    color='white',
     transform=ax3_top.transAxes, 
     fontsize=16, 
     va='top', 
@@ -275,7 +275,7 @@ ax3_top.text(
 )
 
 fig2.savefig(
-    "fig_exports/fig2_s.pdf", 
+    "fig_exports/fig2_f.pdf", 
     dpi=300, 
     bbox_inches="tight", 
     transparent=True,

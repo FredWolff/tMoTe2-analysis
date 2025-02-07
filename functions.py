@@ -2241,8 +2241,8 @@ def create_fig2_ax12(
     ax2.set_xlabel(r'$n$ (cm$^{-2}$)')
     ax1.set_ylabel(r'$D/\epsilon_0$ (V/nm)')
     ax2.set_ylabel(r'$D/\epsilon_0$ (V/nm)')
-    ax1.set_ylim(-0.25, 0.25)
-    ax2.set_ylim(-0.25, 0.25)
+    ax1.set_ylim(-0.35, 0.35)
+    ax2.set_ylim(-0.35, 0.35)
 
     ax1_top.set_xlabel(r'$\nu$')
     ax2_top.set_xlabel(r'$\nu$')
@@ -2363,6 +2363,8 @@ def create_fig2_ax3(
 
     ax3.set_xlim(x_lims)
     ax3_top.set_xlim(v_lims)
+    ax3.set_ylim(0, 2.25)
+    # ax3_top.set_ylim(0, 2.15)
 
     return ax3_top
 
