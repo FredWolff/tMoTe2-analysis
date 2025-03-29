@@ -411,6 +411,7 @@ for filling, result_dict in zip(filling_list, results_list):
     data_array = np.array(result_dict[D_cut].x_max_coords_data)
     fit_array = np.array(result_dict[D_cut].x_max_coords)
     gamma_array = np.array(result_dict[D_cut].fit_gamma)
+    peak_fit_loc_err = np.array(result_dict[D_cut].fit_errors)
 
     y_0 = fit_array[0] + n_post_correction
     
@@ -436,6 +437,7 @@ for filling, result_dict in zip(filling_list, results_list):
     plot_data = {
         'B_array': B_array[succesful_fits],
         'fit_array': fit_array[succesful_fits] + n_post_correction,
+        'peak_loc_err': peak_fit_loc_err[succesful_fits][:, 2],
         'y_0': y_0,
         'gamma_array': gamma_array[succesful_fits],
         'fit_params': result_dict[D_cut].MLE_params,

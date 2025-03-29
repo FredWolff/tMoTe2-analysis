@@ -684,7 +684,7 @@ def run_fitting_routine(
 
     args = (np.array(Results_class.B_set_list)[succesful_fits], 
             Results_class.x_max_coords[succesful_fits], 
-            Results_class.fit_gamma[succesful_fits],
+            Results_class.fit_errors[succesful_fits, 2], # Results_class.fit_gamma[succesful_fits],
             param_scaling,
             model_function
     )
@@ -2180,12 +2180,13 @@ def create_fig2_ax12(
     vv = nn / np.abs(n_to_12_v)
 
     z_lims = (0.03, 200)
-    x_lims = (-4.95e12, -0.85e12)
+    y_lims = (-0.22, 0.32)
+    x_lims = (-4.95, -0.85)#(-4.95e12, -0.85e12)
     v_lims = (x_lims[0] / np.abs(n_to_12_v), 
               x_lims[1] / np.abs(n_to_12_v))
 
     mesh1 = ax1.pcolormesh(
-        nn, 
+        nn * 1e-12, 
         DD, 
         R_200, 
         norm=matplotlib.colors.LogNorm(
@@ -2196,7 +2197,7 @@ def create_fig2_ax12(
         rasterized=True,
     )
     mesh2 = ax2.pcolormesh(
-        nn, 
+        nn * 1e-12, 
         DD, 
         R_2, 
         norm=matplotlib.colors.LogNorm(
@@ -2208,41 +2209,18 @@ def create_fig2_ax12(
     )
 
     ax1_top = ax1.twiny()
-    ax1_top.pcolormesh(
-        vv,
-        DD, 
-        R_200, 
-        norm=matplotlib.colors.LogNorm(
-            vmin=z_lims[0], 
-            vmax=z_lims[1]
-        ),
-        cmap=cmap,
-        rasterized=True,
-    )
-
     ax2_top = ax2.twiny()
-    ax2_top.pcolormesh(
-        vv,
-        DD, 
-        R_2, 
-        norm=matplotlib.colors.LogNorm(
-            vmin=z_lims[0], 
-            vmax=z_lims[1]
-        ),
-        cmap=cmap,
-        rasterized=True,
-    )
 
     # cbar1 = plt.colorbar(mesh1, cax=cax1)
     cbar2 = plt.colorbar(mesh2, cax=cax2)
     # cbar1.set_label(r'$R_{xx}$ (h/e$^2$)')
     cbar2.set_label(r'$R_{xx}$ (h/e$^2$)')
-    ax1.set_xlabel(r'$n$ (cm$^{-2}$)')
-    ax2.set_xlabel(r'$n$ (cm$^{-2}$)')
+    ax1.set_xlabel(r'$n$ ($\times10^{12}$ cm$^{-2}$)')
+    ax2.set_xlabel(r'$n$ ($\times10^{12}$ cm$^{-2}$)')
     ax1.set_ylabel(r'$D/\epsilon_0$ (V/nm)')
     ax2.set_ylabel(r'$D/\epsilon_0$ (V/nm)')
-    ax1.set_ylim(-0.35, 0.35)
-    ax2.set_ylim(-0.35, 0.35)
+    ax1.set_ylim(*y_lims)
+    ax2.set_ylim(*y_lims)
 
     ax1_top.set_xlabel(r'$\nu$')
     ax2_top.set_xlabel(r'$\nu$')
@@ -2251,25 +2229,27 @@ def create_fig2_ax12(
     tick_labels = ax1.get_xticks()
     tick_labels = list(tick_labels)
     ax1.set_xticks(tick_labels[2:])
-    ax1.xaxis.set_minor_locator(MultipleLocator(0.5e12))
+    ax1.xaxis.set_major_locator(MultipleLocator(1))
+    ax1.xaxis.set_minor_locator(MultipleLocator(0.5))#ax1.xaxis.set_minor_locator(MultipleLocator(0.5e12))
     ax1.set_yticks([-0.2, 0, 0.2])
     ax1.yaxis.set_minor_locator(MultipleLocator(0.1))
     tick_labels = ax2.get_xticks()
     tick_labels = list(tick_labels)
     ax2.set_xticks(tick_labels[2:])
-    ax2.xaxis.set_minor_locator(MultipleLocator(0.5e12))
+    ax2.xaxis.set_major_locator(MultipleLocator(1))
+    ax2.xaxis.set_minor_locator(MultipleLocator(0.5))#ax2.xaxis.set_minor_locator(MultipleLocator(0.5e12))
     ax2.set_yticks([-0.2, 0, 0.2])
     ax2.yaxis.set_minor_locator(MultipleLocator(0.1))
 
-    v_ticks = [-1, -0.67, -1/2, -0.33]
+    v_ticks = 1e-12 * np.array([-1, -0.67, -1/2, -0.33])#[-1, -0.67, -1/2, -0.33]
     v_tick_labels = ['1', '2/3', '1/2', '1/3']
     ax1_top.set_xticks(v_ticks)
     ax1_top.set_xticklabels(v_tick_labels)
     ax2_top.set_xticks(v_ticks)
     ax2_top.set_xticklabels(v_tick_labels)
 
-    ax1_top.hlines(0.12, -1.5, -1.11, color='limegreen', linewidth=5)
-    ax2_top.hlines(0.12, -1.5, -1.11, color='dodgerblue', linewidth=5)
+    ax1_top.hlines(0.12, -1.5e-12, -1.12e-12, color='limegreen', linewidth=5)
+    ax2_top.hlines(0.12, -1.5e-12, -1.12e-12, color='dodgerblue', linewidth=5)
 
     [set_ax_xlims(ax, x_lims) for ax in [ax1, ax2]]
     [set_ax_xlims(ax, v_lims) for ax in [ax1_top, ax2_top]]
@@ -2298,12 +2278,12 @@ def create_fig2_ax3(
     vv = nn_double / np.abs(n_to_12_v)
 
     z_lims = (0.03, 200) #(0.02, 200)
-    x_lims = (-4.95e12, -0.85e12)
+    x_lims = (-4.93, -0.85)#(-4.95e12, -0.85e12)
     v_lims = (x_lims[0] / np.abs(n_to_12_v), 
               x_lims[1] / np.abs(n_to_12_v))
 
     mesh = ax3.pcolormesh(
-        nn_double,
+        nn_double * 1e-12,
         BB_double,
         R_double,
         norm=matplotlib.colors.LogNorm(
@@ -2316,46 +2296,34 @@ def create_fig2_ax3(
     )
 
     ax3_top = ax3.twiny()
-    ax3_top.pcolormesh(
-        vv,
-        BB_double,
-        R_double,
-        norm=matplotlib.colors.LogNorm(
-            vmin=z_lims[0], 
-            vmax=z_lims[1]
-        ),
-        cmap=cmap,
-        rasterized=True,
-        zorder=2,
-    )
 
     # cbar = plt.colorbar(mesh, cax=cax3)
     # cbar.set_label(r'$R_{xx}$ (h/e$^2$)')
-    ax3.set_xlabel(r'$n$ (cm$^{-2}$)')
-    ax3.set_ylabel(r'$B$ (T)')
-    ax3.set_xticks([-4e12, -3e12, -2e12, -1e12])
-    ax3.xaxis.set_minor_locator(MultipleLocator(0.5e12))
+    ax3.set_xlabel(r'$n$ ($\times10^{12}$ cm$^{-2}$)')
+    ax3.set_ylabel(r'$\mu_0 H$ (T)')
+    ax3.set_xticks([-4, -3, -2, -1])#ax3.set_xticks([-4e12, -3e12, -2e12, -1e12])
+    ax3.xaxis.set_minor_locator(MultipleLocator(0.5))#ax3.xaxis.set_minor_locator(MultipleLocator(0.5e12))
     ax3.yaxis.set_major_locator(MultipleLocator(1))
     ax3.yaxis.set_minor_locator(MultipleLocator(0.5))
 
     ax3_top.set_xlabel(r'$\nu$')
-    v_ticks = [-1, -0.67, -1/2, -0.33]
+    v_ticks = 1e-12 * np.array([-1, -0.67, -1/2, -0.33])#[-1, -0.67, -1/2, -0.33]
     v_tick_labels = ['1', '2/3', '1/2', '1/3']
     ax3_top.set_xticks(v_ticks)
     ax3_top.set_xticklabels(v_tick_labels)
 
     ax3_top.hlines(
         0.2, 
-        -1.5, 
-        -1.15,
+        -1.5e-12,#-1.5, 
+        -1.16e-12,#-1.15,
         color='limegreen', 
         linewidth=5, 
         zorder=3,
     )
     ax3_top.hlines(
         2, 
-        -1.5, 
-        -1.15,
+        -1.5e-12,#-1.5, 
+        -1.16e-12,#-1.15,
         color='dodgerblue', 
         linewidth=5,
         zorder=3,
@@ -2363,7 +2331,7 @@ def create_fig2_ax3(
 
     ax3.set_xlim(x_lims)
     ax3_top.set_xlim(v_lims)
-    ax3.set_ylim(0, 2.25)
+    # ax3.set_ylim(0, 2.25)
     # ax3_top.set_ylim(0, 2.15)
 
     return ax3_top
@@ -2450,50 +2418,62 @@ def create_fig4_ax1(
     a_d = fitted_B_one_third
     b_d = fitted_B_half
     c_d = fitted_B_two_thirds
+
+    capthick = 3
+    capsize = 8
+    elinewidth = 2
+    markeredgewidth = 2
+    markersize = 9
     
     ax1.errorbar(
         a_d['fit_array'] - a_d['y_0'], 
         a_d['B_array'], 
         fmt=shape_list[0],
-        xerr=a_d['gamma_array'],
+        # xerr=a_d['gamma_array'],
+        xerr=a_d['peak_loc_err'],
         label='1/3', 
         color=color_list[0],
-        capthick=2,
-        capsize=8,
-        elinewidth=1.5,
+        capthick=capthick,
+        capsize=capsize,
+        elinewidth=elinewidth,
         markeredgecolor='black',
-        markeredgewidth=1.5,
+        markeredgewidth=markeredgewidth,
+        markersize=markersize,
     )
 
     ax1.errorbar(
         b_d['fit_array'] - b_d['y_0'], 
         b_d['B_array'], 
         fmt=shape_list[1],
-        xerr=b_d['gamma_array'],
+        # xerr=b_d['gamma_array'],
+        xerr=b_d['peak_loc_err'],
         label='1/2', 
         color=color_list[1],
-        capthick=2,
-        capsize=8,
-        elinewidth=1.5,
+        capthick=capthick,
+        capsize=capsize,
+        elinewidth=elinewidth,
         markeredgecolor='black',
-        markeredgewidth=1.5,
+        markeredgewidth=markeredgewidth,
+        markersize=markersize,
     )
 
     ax1.errorbar(
         c_d['fit_array'] - c_d['y_0'], 
         c_d['B_array'], 
         fmt=shape_list[2],
-        xerr=c_d['gamma_array'],
+        # xerr=c_d['gamma_array'],
+        xerr=c_d['peak_loc_err'],
         label='2/3', 
         color=color_list[2],
-        capthick=2,
-        capsize=8,
-        elinewidth=1.5,
+        capthick=capthick,
+        capsize=capsize,
+        elinewidth=elinewidth,
         markeredgecolor='black',
-        markeredgewidth=1.5,
+        markeredgewidth=markeredgewidth,
+        markersize=markersize,
     )
 
-    B_lim = np.array([-0.05, 4.1])
+    B_lim = np.array([-0.1, 4.1])
     n_cp = a_d['n_post_correction']
 
     B_in_one_third, B_out_one_third = gen_B_in_out(B_lim, a_d['B_array'])
@@ -2541,15 +2521,18 @@ def create_fig4_ax1(
         color=color_list[2],
     )
     
+    ax1.get_xaxis().get_offset_text().set_visible(False)
     ax1.xaxis.set_major_locator(MultipleLocator(1e11))
     ax1.xaxis.set_minor_locator(MultipleLocator(.5e11))
     ax1.yaxis.set_major_locator(MultipleLocator(1))
     ax1.yaxis.set_minor_locator(MultipleLocator(.5))
 
-    ax1.legend(loc='center left', title=r'$\nu$')
-    ax1.set_xlabel(r'$\delta n$ (cm$^{-2}$)')
-    ax1.set_ylabel(r'$B$ (T)')
-    ax1.set_ylim(-0.05, 4.1)
+    leg = ax1.legend(loc='center left', title=r'$\nu$', bbox_to_anchor=(0, 0.65))
+    leg.get_frame().set_alpha(0)
+
+    ax1.set_xlabel(r'$\delta n$ ($\times 10^{11}$ cm$^{-2}$)')
+    ax1.set_ylabel(r'$\mu_0 H$ (T)')
+    ax1.set_ylim(-0.1, 4.1)
 
 
 def create_fig4_ax1_ins(
@@ -2562,6 +2545,7 @@ def create_fig4_ax1_ins(
         fitted_B_two_thirds: dict[any],
         color_list: list[str],
         in_out_style: dict[str],
+        probe: str,
 ) -> None:
     
     nn = B_n_data.nn + corr_vec[0]
@@ -2573,6 +2557,8 @@ def create_fig4_ax1_ins(
     b_d = fitted_B_half
     c_d = fitted_B_two_thirds
     n_cp = a_d['n_post_correction']
+
+    n_to_12_v = get_v_conversion(probe)
 
     x_lims = (-3.2e12, -1e12)
     z_lims = (0.01, 200)
@@ -2595,14 +2581,14 @@ def create_fig4_ax1_ins(
         B_out_one_third,
         linestyle=in_out_style['out'],
         color=color_list[0],
-        linewidth=2.5,
+        linewidth=1.5,
     )
     ax1_ins.plot(
         a_d['model_function'](B_in_one_third, *a_d['fit_params']),
         B_in_one_third,
         linestyle=in_out_style['in'],
         color=color_list[0],
-        linewidth=2.5,
+        linewidth=1.5,
     )
 
     B_in_half, B_out_half = gen_B_in_out(B_lim, b_d['B_array'])
@@ -2612,14 +2598,14 @@ def create_fig4_ax1_ins(
         B_out_half,
         linestyle=in_out_style['out'],
         color=color_list[1],
-        linewidth=2.5,
+        linewidth=1.5,
     )
     ax1_ins.plot(
         b_d['model_function'](B_in_half, *b_d['fit_params']),
         B_in_half,
         linestyle=in_out_style['in'],
         color=color_list[1],
-        linewidth=2.5,
+        linewidth=1.5,
     )
 
     B_in_two_thirds, B_out_two_thirds = gen_B_in_out(B_lim, c_d['B_array'])
@@ -2629,22 +2615,24 @@ def create_fig4_ax1_ins(
         B_out_two_thirds,
         linestyle=in_out_style['out'],
         color=color_list[2],
-        linewidth=2.5,
+        linewidth=1.5,
     )
     ax1_ins.plot(
         c_d['model_function'](B_in_two_thirds, *c_d['fit_params']),
         B_in_two_thirds,
         linestyle=in_out_style['in'],
         color=color_list[2],
-        linewidth=2.5,
+        linewidth=1.5,
     )
 
-    ax1_ins.set_xticks([])
-    ax1_ins.set_yticks([])
+    ax1_ins.set_xticks([n_to_12_v/3, n_to_12_v/2, 2*n_to_12_v/3])
+    ax1_ins.set_xticklabels(['1/3', '1/2', '2/3'])
+    ax1_ins.yaxis.set_major_locator(MultipleLocator(2))
+    ax1_ins.yaxis.set_minor_locator(MultipleLocator(1))
     ax1_ins.set_xlim(x_lims)
     ax1_ins.set_ylim(np.min(BB), np.max(BB))
     ax1_ins.set_xlabel(r'$\nu$')
-    ax1_ins.set_ylabel(r'$B$ (T)')
+    ax1_ins.set_ylabel(r'$\mu_0 H$ (T)')
 
 def create_fig4_ax2(
     ax2_1: matplotlib.axes.Axes,
@@ -2775,26 +2763,29 @@ def create_fig4_ax3(
         )
         line_handles.append(line)
 
-    ax3.legend(
+    leg = ax3.legend(
         handles=[
             line_handles[0], 
             line_handles[1], 
             line_handles[-1],
         ], 
         labels=[
-            f'{D_list[0]:.2f} V/nm', 
-            f'{D_list[len(D_list)//2 - 3]:.2f} V/nm',
-            f'{D_list[-6]:.2f} V/nm',
+            f'{D_list[0]:.2f}', 
+            f'{D_list[len(D_list)//2 - 3]:.2f}',
+            f'{D_list[-6]:.2f}',
         ],
-        title=r'$D/\epsilon_{0}$',
+        title=r'$D/\epsilon_{0}$ (V/nm)',
     )
+    leg.get_frame().set_alpha(0)
 
-    ax3.xaxis.set_minor_locator(MultipleLocator(.5e11))
+    ax3.get_xaxis().get_offset_text().set_visible(False)
+    ax3.xaxis.set_major_locator(MultipleLocator(2e11))
+    ax3.xaxis.set_minor_locator(MultipleLocator(1e11))
     ax3.yaxis.set_minor_locator(MultipleLocator(.5))
 
-    ax3.set_ylim(0, 4)
-    ax3.set_ylabel(r'$B$ (T)')
-    ax3.set_xlabel(r'$n$ (cm$^{-2}$)')
+    ax3.set_ylim(0, 4.01)
+    ax3.set_ylabel(r'$\mu_0 H$ (T)')
+    ax3.set_xlabel(r'$n$ ($\times 10^{12}$ cm$^{-2}$)')
 
 def create_fig4_ax4(
         ax4: matplotlib.axes.Axes,
@@ -2836,10 +2827,10 @@ def create_fig4_ax4(
         linewidth=2,
     )
 
-    ax4.xaxis.set_minor_locator(MultipleLocator(.025))
+    ax4.xaxis.set_minor_locator(MultipleLocator(.05))
     ax4.yaxis.set_minor_locator(MultipleLocator(1))
 
-    ax4.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
+    ax4.set_ylabel(r'$R$ (h/e$^2$)')
     ax4.set_xlabel(r'$D/\epsilon_0$ (V/nm)')
     ax4.set_xlim(-0.13, 0.13)
     ax4.set_ylim(0, 10.5)
@@ -2865,8 +2856,10 @@ def generate_con_color(
     input_rgb = hex_to_rgb(input_color_hex) / 255
     teal = '#008080'
     mnblue = '191970'
+    black = '000000'
     # asymptote_rgb = input_rgb / 4
-    asymptote_rgb = hex_to_rgb(mnblue) / 255
+    # asymptote_rgb = hex_to_rgb(mnblue) / 255
+    asymptote_rgb = hex_to_rgb(black) / 255
 
     colorlist = [(1 - i / (num_colors - 1)) * asymptote_rgb 
                 + (i / (num_colors - 1)) * input_rgb for i in range(num_colors)]

@@ -15,9 +15,15 @@ import pickle
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 # matplotlib.use('pdf')
-matplotlib.rc('font', family='arial', size=16)
-matplotlib.rcParams['xtick.minor.size'] = 2.5
-matplotlib.rcParams['ytick.minor.size'] = 2.5
+matplotlib.rc('font', family='arial', size=20)# matplotlib.rc('font', family='arial', size=16)
+matplotlib.rcParams['xtick.major.size'] = 4
+matplotlib.rcParams['ytick.major.size'] = 4
+matplotlib.rcParams['xtick.minor.size'] = 3
+matplotlib.rcParams['ytick.minor.size'] = 3
+matplotlib.rcParams["xtick.major.width"] = 1
+matplotlib.rcParams["ytick.major.width"] = 1
+matplotlib.rcParams["xtick.minor.width"] = .5
+matplotlib.rcParams["ytick.minor.width"] = .5
 
 ppi = 72
 inch_to_cm = 2.54
@@ -41,9 +47,11 @@ plt.style.context('seaborn-paper')
 probe = '11_06'
 
 # color_1_3 = '#DC143C' # crimson
-color_1_3 = rgb_to_hex(np.array([255, 85, 85]))#'red'#'#32CD32' # limegreen
+# color_1_3 = rgb_to_hex(np.array([255, 85, 85]))#'red'#'#32CD32' # limegreen
+color_1_3 = rgb_to_hex(np.array([0, 170, 255]))
 # color_1_2 = '#00FFFF' # cyan
-color_1_2 = rgb_to_hex(np.array([0, 170, 255]))#'#4682B4' # steelblue '#00bfff' # deep sky blue
+# color_1_2 = rgb_to_hex(np.array([0, 170, 255]))#'#4682B4' # steelblue '#00bfff' # deep sky blue
+color_1_2 = rgb_to_hex(np.array([255, 85, 85]))
 # color_2_3 = '#EE82EE' # violet
 color_2_3 = rgb_to_hex(np.array([255, 191, 33]))#'orange'#'#9400d3' # darkviolet
 
@@ -143,6 +151,9 @@ fig_size = (8, 6)
 fig_xx = plt.figure(figsize=fig_size)
 fig_yy = plt.figure(figsize=fig_size)
 
+with open('jar/fig1_gg_map.pickle', 'rb') as f:
+    fig1_gg_map = pickle.load(f)
+
 ax_xx = fig_xx.add_subplot(111)
 ax_yy = fig_yy.add_subplot(111)
 
@@ -161,21 +172,21 @@ ax2_top, ax3_top = create_fig1_ax23(
 add_minor_ticks(fig_xx, ax2_top)
 add_minor_ticks(fig_yy, ax3_top)
 
-fig_xx.savefig(
-    "fig_exports/fig1_xx_map.pdf", 
-    dpi=300, 
-    bbox_inches="tight", 
-    transparent=True,
-    backend='pdf',
-)
+# fig_xx.savefig(
+#     "fig_exports/fig1_xx_map.pdf", 
+#     dpi=300, 
+#     bbox_inches="tight", 
+#     transparent=True,
+#     backend='pdf',
+# )
 
-fig_yy.savefig(
-    "fig_exports/fig1_yy_map.pdf", 
-    dpi=300, 
-    bbox_inches="tight", 
-    transparent=True,
-    backend='pdf',
-)
+# fig_yy.savefig(
+#     "fig_exports/fig1_yy_map.pdf", 
+#     dpi=300, 
+#     bbox_inches="tight", 
+#     transparent=True,
+#     backend='pdf',
+# )
 #%% Fig 2
 fig2 = plt.figure(figsize=(fig_width_cm, 14))
 # gs = plt.GridSpec(10, 15, figure=fig2)
@@ -190,11 +201,11 @@ fig2 = plt.figure(figsize=(fig_width_cm, 14))
 hspace = 4
 
 gs = plt.GridSpec(100, 100, figure=fig2)
-ax1 = fig2.add_subplot(gs[:43-hspace, :40])
+ax1 = fig2.add_subplot(gs[:46-hspace, :39])
 # cax1 = fig2.add_subplot(gs[:40-hspace, 37:39])
-ax2 = fig2.add_subplot(gs[:43-hspace, 47:87])
+ax2 = fig2.add_subplot(gs[:46-hspace, 48:87])
 cax2 = fig2.add_subplot(gs[20:80, 88:89])
-ax3 = fig2.add_subplot(gs[46+hspace:, :87])
+ax3 = fig2.add_subplot(gs[50+hspace:, :87])
 # cax3 = fig2.add_subplot(gs[43+hspace:, 88:90])
 # ax4_1 = fig2.add_subplot(gs[:, 70:85])
 # ax4_2 = fig2.add_subplot(gs[:, 85:], sharey=ax4_1)
@@ -254,28 +265,50 @@ labels = ['(a)', '(b)']
 
 for ax, label in zip([ax1, ax2], labels):
     ax.text(
-        0.02, 
-        0.95, 
+        0.03, 
+        0.98, 
         label, 
         transform=ax.transAxes, 
-        fontsize=16, 
+        fontsize=20, 
         va='top', 
         ha='left'
     )
 
+ax1_top.text(
+    0.02, 
+    0.02, 
+    r'$\mu_0 H$ = 0.2T', 
+    color='black',
+    transform=ax1_top.transAxes, 
+    fontsize=20, 
+    va='bottom', 
+    ha='left',
+)
+
+ax2_top.text(
+    0.02, 
+    0.02, 
+    r'$\mu_0 H$ = 2T', 
+    color='black',
+    transform=ax2_top.transAxes, 
+    fontsize=20, 
+    va='bottom',
+    ha='left',
+)
+
 ax3_top.text(
-    0.01, 
-    0.97, 
+    0.03, 
+    0.98, 
     '(c)', 
     color='white',
     transform=ax3_top.transAxes, 
-    fontsize=16, 
+    fontsize=20, 
     va='top', 
     ha='left',
 )
 
 fig2.savefig(
-    "fig_exports/fig2_f.pdf", 
+    "fig_exports/fig2.pdf", 
     dpi=300, 
     bbox_inches="tight", 
     transparent=True,
@@ -288,14 +321,14 @@ fig4 = plt.figure(figsize=(fig_width_cm, 8))
 
 gs = plt.GridSpec(100, 100, figure=fig4)
 ax1 = fig4.add_subplot(gs[:, :58])
-ax1_ins = inset_axes(ax1, width="55%", height="25%", loc=3, borderpad=2)
+ax1_ins = inset_axes(ax1, width="53%", height="32%", loc=3, borderpad=2.6)
 # ax2_2 = fig4.add_subplot(gs[83:, 0:58])
 # ax2_1 = fig4.add_subplot(gs[63:80, 0:58])
 
 # ax2_2.sharex(ax2_1)
 
-ax3 = fig4.add_subplot(gs[:44, 64:])
-ax4 = fig4.add_subplot(gs[56:, 64:])
+ax3 = fig4.add_subplot(gs[:44, 66:])
+ax4 = fig4.add_subplot(gs[57:, 66:])
 
 #### ax1 #### data from "discrete_v_B_dependence.py"
 with open('jar/B_dependence_one_third_paper_plot.pickle', 'rb') as f:
@@ -332,6 +365,7 @@ create_fig4_ax1_ins(
     fitted_B_two_thirds,
     color_fillings,
     in_out_style,
+    probe,
 )
 
 #### ax2 & ax3 #### data from "discrete_v_B_dependence.py"
@@ -385,88 +419,43 @@ for ax, label in zip([ax1, ax3, ax4], labels):
 # ax1_ins.tick_params(labelleft=False, labelbottom=False)
 
 fig4.savefig(
-    "fig_exports/fig4.pdf", 
+    "fig_exports/fig4_fit_error.pdf", 
     dpi=300, 
     bbox_inches="tight", 
     transparent=True,
     backend='pdf',
 )
 
-#%% export figure
-fig4.savefig('fig4.png', dpi=300, bbox_inches='tight')
 # %%
 
-# Create the figure and 3D axes
-fig = plt.figure(figsize=(12, 8))
-ax = fig.add_subplot(111, projection='3d')
+with open('jar/D_dependence_paper_plot.pickle', 'rb') as f:
+    D_dependence_data = pickle.load(f)
 
-# Set view to look at the surface from the front
-ax.view_init(elev=30, azim=0)  # elev = vertical angle, azim = horizontal rotation
+D_list = np.array(D_dependence_data['D_list'])
+model_list = np.array(D_dependence_data['model_list'])
+B_list_gen = np.array(D_dependence_data['B_list_gen'])
 
-# Set the ranges for the axes
-ax.set_xlim(4.5, 0)  # x-axis (horizontal)
-ax.set_ylim(-8e11, 1e11)  # y-axis 
-ax.set_zlim(0, 1e-10)  # z-axis (depth)
+func = lambda n, D, B_s, n_s, alpha: B_s * (1 + 1e2 * (n - n_s) / n_s * D ** (-alpha))
+# %%
+plt.plot(model_list[0], B_list_gen**2, 'o')
+plt.plot(model_list[100], B_list_gen**2, 'o')
 
-# Label the axes
-ax.set_xlabel('X-axis')
-ax.set_ylabel('Y-axis')
+p0 = [0.6, -2.44e12, .5]
+i = 100
+plt.plot(model_list[i], func(model_list[i], D_list[i], *popt), 'o')
 
-ax.set_zticks([]) 
+# plt.xlim(-2.5e12, -2.4e12)
+# %%
+dummy = np.ones((50, 1))
+D_grid = np.meshgrid(dummy, D_list)[1]
 
-for i in range(len(fitted_B_one_third['gamma_array'])):
-    xs = np.linspace(
-        -10*fitted_B_one_third['gamma_array'][i],
-        10*fitted_B_one_third['gamma_array'][i],
-        400)
-    peak_arr = scipy.stats.cauchy.pdf(
-        xs, 
-        fitted_B_one_third['fit_array'][i] - fitted_B_one_third['y_0'], 
-        fitted_B_one_third['gamma_array'][i]
-    )
-
-    x_arr = fitted_B_one_third['B_array'][i]*np.ones_like(peak_arr)
-    y_arr = xs
-    z_arr = peak_arr
-
-    ax.plot3D(x_arr, y_arr, z_arr, color=color_1_3)
-
-for i in range(len(fitted_B_two_thirds['gamma_array'])):
-    xs = np.linspace(
-        -10*fitted_B_two_thirds['gamma_array'][i],
-        10*fitted_B_two_thirds['gamma_array'][i],
-        400)
-    peak_arr = scipy.stats.cauchy.pdf(
-        xs, 
-        fitted_B_two_thirds['fit_array'][i] - fitted_B_two_thirds['y_0'], 
-        fitted_B_two_thirds['gamma_array'][i]
-    )
-
-    x_arr = fitted_B_two_thirds['B_array'][i]*np.ones_like(peak_arr)
-    y_arr = xs
-    z_arr = peak_arr
-
-    ax.plot3D(x_arr, y_arr, z_arr, color=color_2_3)
-
-for i in range(len(fitted_B_half['gamma_array'])):
-    xs = np.linspace(
-        -10*fitted_B_half['gamma_array'][i],
-        10*fitted_B_half['gamma_array'][i],
-        400)
-    peak_arr = scipy.stats.cauchy.pdf(
-        xs, 
-        fitted_B_half['fit_array'][i] - fitted_B_half['y_0'], 
-        fitted_B_half['gamma_array'][i]
-    )
-
-    x_arr = fitted_B_half['B_array'][i]*np.ones_like(peak_arr)
-    y_arr = xs
-    z_arr = peak_arr
-
-    ax.plot3D(x_arr, y_arr, z_arr, color=color_1_2)
-    ax.plot3D(x_arr, y_arr, 0, color='grey')
-
-ax.grid(False)
-
-plt.show()
+fit_func = lambda x, B_s, n_s, alpha: (B_s * (1 + 1e2 * (x[0] - n_s) / n_s * x[1] ** (-alpha)))
+x = np.array([model_list.flatten(), D_grid.flatten()], dtype=np.float64)
+p0 = np.array([0.6, -2.44e12, .5], dtype=np.float64)
+popt, pcov = curve_fit(
+    fit_func, 
+    x,
+    np.tile((B_list_gen[np.newaxis, :])**2, (126, 1)).flatten(), 
+    p0=p0,
+)
 # %%
