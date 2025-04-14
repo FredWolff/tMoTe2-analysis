@@ -10,6 +10,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib
+import matplotlib.colors as mcolors
 import sys
 import pickle
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
@@ -92,6 +93,19 @@ custom_xx_cmap = matplotlib.colors.LinearSegmentedColormap.from_list(
 )
 Rxx_cmap = cm.inferno
 # Rxx_cmap = custom_xx_cmap
+
+# Modified positions
+cvals = [0, 0.3, 0.45, 0.64, 0.78, 0.85, 0.92, 1. - 1e-5]
+
+# Modified RGB color sequence
+mod_inferno_colors = [Rxx_cmap(val)[:3] for val in cvals]  # Drop alpha channel
+
+mod_inferno_Rxx_cmap = mcolors.LinearSegmentedColormap.from_list(
+    'mod_inferno',
+    mod_inferno_colors
+)
+
+# Rxx_cmap = mod_inferno_Rxx_cmap
 Rxx_cmap.set_bad(color='grey')
 Rxy_cmap = cm.PuOr#cm.coolwarm
 
