@@ -322,7 +322,7 @@ ax3_top.text(
 )
 
 fig2.savefig(
-    "fig_exports/fig2.pdf", 
+    "fig_exports/fig2_no_raster.pdf", 
     dpi=300, 
     bbox_inches="tight", 
     transparent=True,
