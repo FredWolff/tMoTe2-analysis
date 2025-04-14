@@ -2173,6 +2173,11 @@ def create_fig2_ax12(
     R_200 = fig2_gg_map.Rxx_11_06_sym_200 / R_Q
     R_2 = fig2_gg_map.Rxx_11_06_sym_2 / R_Q
 
+    index_devisor = 75
+
+    R_200 = map_negative_Rxx(R_200, index_devisor)
+    R_2 = map_negative_Rxx(R_2, index_devisor)
+
     nn = nn_uncorr + corr_vec[0]
     DD = DD_uncorr - corr_vec[1]
     probe = '11_06'
@@ -2194,7 +2199,7 @@ def create_fig2_ax12(
             vmax=z_lims[1]
         ),
         cmap=cmap,
-        rasterized=True,
+        rasterized=False,
     )
     mesh2 = ax2.pcolormesh(
         nn * 1e-12, 
@@ -2205,7 +2210,7 @@ def create_fig2_ax12(
             vmax=z_lims[1]
         ),
         cmap=cmap,
-        rasterized=True,
+        rasterized=False,
     )
 
     ax1_top = ax1.twiny()
@@ -2242,7 +2247,7 @@ def create_fig2_ax12(
     ax2.yaxis.set_minor_locator(MultipleLocator(0.1))
 
     v_ticks = 1e-12 * np.array([-1, -0.67, -1/2, -0.33])#[-1, -0.67, -1/2, -0.33]
-    v_tick_labels = ['1', '2/3', '1/2', '1/3']
+    v_tick_labels = ['-1', '-2/3', '-1/2', '-1/3']
     ax1_top.set_xticks(v_ticks)
     ax1_top.set_xticklabels(v_tick_labels)
     ax2_top.set_xticks(v_ticks)
@@ -2291,7 +2296,7 @@ def create_fig2_ax3(
             vmax=z_lims[1]
         ),
         cmap=cmap,
-        rasterized=True,
+        rasterized=False,
         zorder=2,
     )
 
@@ -2308,7 +2313,7 @@ def create_fig2_ax3(
 
     ax3_top.set_xlabel(r'$\nu$')
     v_ticks = 1e-12 * np.array([-1, -0.67, -1/2, -0.33])#[-1, -0.67, -1/2, -0.33]
-    v_tick_labels = ['1', '2/3', '1/2', '1/3']
+    v_tick_labels = ['-1', '-2/3', '-1/2', '-1/3']
     ax3_top.set_xticks(v_ticks)
     ax3_top.set_xticklabels(v_tick_labels)
 
@@ -2866,3 +2871,18 @@ def generate_con_color(
 
     return np.flip(colorlist, axis=0)
 
+def map_negative_Rxx(
+        R_array: NDArray[np.float64], 
+        #devisor: np.float64,
+        index_devisor: int,
+    ) -> NDArray[np.float64]:
+    """
+    Maps negative Rxx values to positive ones.
+    """
+    R_array = np.copy(R_array)
+    # R_array[(R_array < 0) & (R_array > -devisor)] = 1e-2
+    # R_array[R_array < -devisor] = 1e10
+
+    R_array[:index_devisor][R_array[:index_devisor] < 0] = 1e10
+    R_array[index_devisor:][R_array[index_devisor:] < 0] = 1e-2
+    return R_array
