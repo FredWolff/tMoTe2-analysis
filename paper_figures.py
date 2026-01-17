@@ -32,11 +32,11 @@ ppcm = ppi/inch_to_cm
 fig_width_pt = 515 #pt
 fig_width_cm = fig_width_pt/ppcm
 
-import_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis'
+import_path = 'D:/analysis_folder/peak_movement/tMoTe2-analysis'
 sys.path.append(import_path)
 from functions import *
 
-plot_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis/'
+plot_path = 'D:/analysis_folder/peak_movement/tMoTe2-analysis/'
 if os.getcwd() != plot_path:
     os.chdir(plot_path)
 
@@ -432,13 +432,13 @@ for ax, label in zip([ax1, ax3, ax4], labels):
 
 # ax1_ins.tick_params(labelleft=False, labelbottom=False)
 
-fig4.savefig(
-    "fig_exports/fig4_fit_error.pdf", 
-    dpi=300, 
-    bbox_inches="tight", 
-    transparent=True,
-    backend='pdf',
-)
+# fig4.savefig(
+#     "fig_exports/fig4_fit_error.pdf", 
+#     dpi=300, 
+#     bbox_inches="tight", 
+#     transparent=True,
+#     backend='pdf',
+# )
 
 # %%
 

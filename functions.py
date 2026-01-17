@@ -268,7 +268,7 @@ def load_multiple_datasets(path: str='Volumes/STORE N GO/TD5/database/') -> Data
     Data_class.Rxy_05_24_75 = (Rxy_05_24_1-Rxy_05_24_2)/2
 
     database = 'Database_CD2_3'
-    qc.config['core']['db_location'] = 'Volumes/STORE N GO/TD5/database/' + database + '.db'
+    qc.config['core']['db_location'] = path + database + '.db'
     qc.initialise_database()
 
     id1 = 223
@@ -1493,7 +1493,12 @@ def inspect_study_quality(result_dict: dict[float, Results],
         a1, a2 = result_dict[D_cut].MLE_params
         #a_scale, c_scale = find_scale(a_SI_scaling(a)), find_scale(c)
         a1_scale, a2_scale = find_scale(a1), find_scale(a2)
-        a1_err, a2_err = result_dict[D_cut].MLE_error_autograd
+        try:
+            a1_err, a2_err = result_dict[D_cut].MLE_error_autograd
+        except TypeError:
+            result_dict[D_cut].MLE_error_autograd = (result_dict[D_cut].MLE_error_autograd, 0)
+            a1_err, a2_err = result_dict[D_cut].MLE_error_autograd
+        
         #a_err, c_err = a_SI_scaling(a_err)/(10**a_scale), c_err/(10**c_scale)
         a1_err, a2_err = a1_err/(10**a1_scale), a2_err/(10**a2_scale)
         a1_err_scale, a2_err_scale = -find_scale(a1_err), -find_scale(a2_err)
@@ -2886,3 +2891,26 @@ def map_negative_Rxx(
     R_array[:index_devisor][R_array[:index_devisor] < 0] = 1e10
     R_array[index_devisor:][R_array[index_devisor:] < 0] = 1e-2
     return R_array
+
+from scipy.stats import f as f_dist
+
+def f_test(y, y_null, y_alt, p_null, p_alt):
+    """
+    Perform F-test between nested models.
+    y: observed data
+    y_null: fit from null model
+    y_alt: fit from alternative model
+    p_null: number of parameters in null model
+    p_alt: number of parameters in alternative model
+    Returns: F-statistic, p-value
+    """
+    n = len(y)
+    ssr_null = np.sum((y - y_null) ** 2)
+    ssr_alt = np.sum((y - y_alt) ** 2)
+    df_null = n - p_null
+    df_alt = n - p_alt
+    num = (ssr_null - ssr_alt) / (p_alt - p_null)
+    denom = ssr_alt / df_alt
+    F = num / denom
+    pval = 1 - f_dist.cdf(F, p_alt - p_null, df_alt)
+    return F, pval

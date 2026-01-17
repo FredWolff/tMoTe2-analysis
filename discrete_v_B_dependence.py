@@ -34,6 +34,7 @@ from qcodes.dataset import load_by_id
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
+from scipy.stats import f as f_dist
 from scipy.stats import cauchy as cauchy_sc
 from scipy.optimize import curve_fit, minimize
 from autograd import hessian
@@ -49,24 +50,25 @@ import os
 import pdb
 import scipy
 import sys
-sys.path.append('/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis')
+#sys.path.append('/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis')
+sys.path.append('C:/Users/frede/Documents/tMoTe2-analysis')
 from functions import *
 import pickle
 
-plot_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis/'
+plot_path = 'C:/Users/frede/Documents/tMoTe2-analysis/'
 base_path = '/'
 if os.getcwd() != base_path:
     os.chdir(base_path)
 
-qc.config['user']['mainfolder'] = '/Volumes/STORE N GO/TD5'
+qc.config['user']['mainfolder'] = 'D:/TD5'
 
 database = 'Database_CD2_'
-qc.config['core']['db_location'] = 'Volumes/STORE N GO/TD5/database/' + database + '.db'
+qc.config['core']['db_location'] = 'D:/TD5/database/' + database + '.db'
 qc.initialise_database()
 qc.new_experiment("2023-10-10_tMoTe2.TD5-CD2", sample_name="TD5")
 
 #%%
-data_class = load_multiple_datasets()
+data_class = load_multiple_datasets('D:/TD5/database/')
 #%% 0.11
 probe = '11_06'
 step_size = 0.001
@@ -737,4 +739,3 @@ with open('jar/fig1_g_scan.pickle', 'wb') as f:
     pickle.dump(fig1_g_scan, f)
 
 os.chdir(base_path)
-# %%
