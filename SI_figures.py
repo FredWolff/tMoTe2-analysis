@@ -124,6 +124,107 @@ in_out_style = {'in': 'solid', 'out': 'dashed'}
 model1_color = 'orange'
 model2_color = 'purple'
 
+#%% peak fits
+with open(base_path + f'jar/SI_peaks.pkl', 'rb') as f:
+    peaks_data = pickle.load(f)
+plt.close()
+
+fig = plt.figure(figsize=(fig_width_cm, 24))
+gs = plt.GridSpec(100, 100, figure=fig)
+
+ax1_lim = 19
+ax1_1 = fig.add_subplot(gs[:ax1_lim, :17])
+ax1_2 = fig.add_subplot(gs[:ax1_lim, 21:38])
+ax1_3 = fig.add_subplot(gs[:ax1_lim, 43:59])
+ax1_4 = fig.add_subplot(gs[:ax1_lim, 64:80])
+ax1_5 = fig.add_subplot(gs[:ax1_lim, 85:])
+axes1 = [ax1_1, ax1_2, ax1_3, ax1_4, ax1_5]
+
+ax2_lim1 = (28, 47)
+ax2_lim2 = (53, 72)
+ax2_1 = fig.add_subplot(gs[ax2_lim1[0]:ax2_lim1[1], :17])
+ax2_2 = fig.add_subplot(gs[ax2_lim1[0]:ax2_lim1[1], 21:38])
+ax2_3 = fig.add_subplot(gs[ax2_lim1[0]:ax2_lim1[1], 43:59])
+ax2_4 = fig.add_subplot(gs[ax2_lim1[0]:ax2_lim1[1], 64:80])
+ax2_5 = fig.add_subplot(gs[ax2_lim1[0]:ax2_lim1[1], 85:])
+ax2_6 = fig.add_subplot(gs[ax2_lim2[0]:ax2_lim2[1], :17])
+ax2_7 = fig.add_subplot(gs[ax2_lim2[0]:ax2_lim2[1], 21:38])
+ax2_8 = fig.add_subplot(gs[ax2_lim2[0]:ax2_lim2[1], 43:60])
+ax2_9 = fig.add_subplot(gs[ax2_lim2[0]:ax2_lim2[1], 64:80])
+axes2 = [ax2_1, ax2_2, ax2_3, ax2_4, ax2_5, ax2_6, ax2_7, ax2_8, ax2_9]
+
+ax3_lim = 81
+ax3_1 = fig.add_subplot(gs[ax3_lim:, :17])
+ax3_2 = fig.add_subplot(gs[ax3_lim:, 21:38])
+ax3_3 = fig.add_subplot(gs[ax3_lim:, 43:60])
+ax3_4 = fig.add_subplot(gs[ax3_lim:, 64:80])
+ax3_5 = fig.add_subplot(gs[ax3_lim:, 85:])
+axes3 = [ax3_1, ax3_2, ax3_3, ax3_4, ax3_5]
+
+def transfer(ax_source, ax_target):
+    # Transfer lines (from plot)
+    for line in ax_source.get_lines():
+        ax_target.plot(
+            1e-12 * line.get_xdata(),
+            line.get_ydata(),
+            color=line.get_color(),
+            linestyle=line.get_linestyle(),
+            marker=line.get_marker(),
+            label=line.get_label(),
+            linewidth=line.get_linewidth(),
+            markersize=line.get_markersize()
+        )
+
+    # Optionally, copy axis labels, limits, and title
+    ax_target.set_xlabel(r'$n$ ($\times10^{12}$ cm$^{-2}$)')
+    # ax_target.set_ylabel(ax_source.get_ylabel())
+    title = (ax_source.get_title().split(',')[0]).split('=')[1]
+    ax_target.set_title(r'$\mu_0 H = $' + title)
+    ax_target.set_xlim(1e-12 * ax_source.get_xlim()[0], 1e-12 * ax_source.get_xlim()[1])
+    ax_target.set_ylim(ax_source.get_ylim())
+
+axes_1_3 = sorted([attr for attr in dir(peaks_data['one_third']) if 'ax_' in attr])
+axes_1_2 = sorted([attr for attr in dir(peaks_data['half']) if 'ax_' in attr])
+axes_2_3 = sorted([attr for attr in dir(peaks_data['two_thirds']) if 'ax_' in attr])
+
+fillings = ['one_third', 'half', 'two_thirds']
+for src_axes, tar_axes in zip([axes_1_3, axes_1_2, axes_2_3], [axes1, axes2, axes3]):
+    filling = fillings.pop(0)
+    i = 0
+    while len(src_axes) > 0:
+        src_ax = getattr(peaks_data[filling], src_axes[0])
+        tar_ax = tar_axes[i]
+        transfer(src_ax, tar_ax)
+        src_axes.pop(0)
+        i += 1
+
+ax1_1.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
+ax2_1.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
+ax2_6.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
+ax3_1.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
+
+
+labels = ['(a)', '(b)', '(c)']
+
+for ax, label in zip([ax1_1, ax2_1, ax3_1], labels):
+    ax.text(
+        -0.25, 
+        1.15, 
+        label, 
+        transform=ax.transAxes, 
+        fontsize=30, 
+        va='top', 
+        ha='left'
+    )
+
+fig.savefig(
+    base_path + "SI_fig_exports/fig_peaks.pdf", 
+    dpi=300, 
+    bbox_inches="tight", 
+    transparent=True,
+    backend='pdf',
+)
+
 #%% Goodness-of-fit
 fig = plt.figure(figsize=(fig_width_cm, 13))
 gs = plt.GridSpec(100, 100, figure=fig)
@@ -161,6 +262,7 @@ for filling, ax in zip(fillings, gof_axes):
     #ax.set_title(r'$\nu = $' + fillings_ratio[filling])
     ax.set_xlabel(r'$D / \epsilon_0$ (V/nm)')
     ax.set_ylabel(r'$p$')
+    ax.set_ylim(0, 1.05*np.max([p1_list, p2_list]))
     ax.legend()
 
 with open(base_path + f'jar/SI_GoF_half.pkl', 'rb') as f:
@@ -197,6 +299,7 @@ ax5.plot(
 )
 ax5.set_xlabel(r'$D / \epsilon_0$ (V/nm)')
 ax5.set_ylabel(r'$RSS^*$')
+ax5.set_ylim(0, 1.05 * np.max([alt1_rss, alt2_rss]) / np.max(alt1_rss))
 ax5.legend()
 
 labels = ['(a)', '(b)', '(c)', '(e)', '(d)']
@@ -345,7 +448,7 @@ im0 = ax[0,0].pcolormesh(
 )
 ax[0,0].set_ylabel(r'$\mu_0 H$ (T)')
 ax[0,0].set_xlabel(r'$n$ ($10^{12}$ cm$^{-2}$)')
-plt.colorbar(im0, label=r'$R^{11-06}$ (h/e$^2$)')
+plt.colorbar(im0, label=r'$\left| Z_{11-06} \right|$ (h/e$^2$)')
 
 im1 = ax[1,0].pcolormesh(
     1e-12 * nn, 
@@ -357,7 +460,7 @@ im1 = ax[1,0].pcolormesh(
 )
 ax[1,0].set_ylabel(r'$\mu_0 H$ (T)')
 ax[1,0].set_xlabel(r'$n$ ($10^{12}$ cm$^{-2}$)')
-plt.colorbar(im1, label=r'$R^{19-20}$ (h/e$^2$)')
+plt.colorbar(im1, label=r'$\left| Z_{19-20} \right|$ (h/e$^2$)')
 
 im2 = ax[0,1].pcolormesh(
     1e-12 * nn, 
@@ -369,7 +472,7 @@ im2 = ax[0,1].pcolormesh(
 )
 ax[0,1].set_ylabel(r'$\mu_0 H$ (T)')
 ax[0,1].set_xlabel(r'$n$ ($10^{12}$ cm$^{-2}$)')
-plt.colorbar(im2, label=r'$R^{20-24}$ (h/e$^2$)')
+plt.colorbar(im2, label=r'$\left| Z_{20-24} \right|$ (h/e$^2$)')
 
 im3 = ax[1,1].pcolormesh(
     1e-12 * nn, 
@@ -381,7 +484,7 @@ im3 = ax[1,1].pcolormesh(
 )
 ax[1,1].set_ylabel(r'$\mu_0 H$ (T)')
 ax[1,1].set_xlabel(r'$n$ ($10^{12}$ cm$^{-2}$)')
-plt.colorbar(im3, label=r'$R^{06-05}$ (h/e$^2$)')
+plt.colorbar(im3, label=r'$\left| Z_{06-05} \right|$ (h/e$^2$)')
 
 fig.tight_layout()
 
@@ -1051,6 +1154,95 @@ qc.new_experiment("2023-10-10_tMoTe2.TD5-CD2", sample_name="TD5")
 
 class Data:
     pass
+
+#%% Peak fits: save data
+data_class = load_multiple_datasets('D:/TD5/database/')
+
+_D_val = 0.12
+
+probe = '11_06'
+step_size = 0.001
+fillings = ['one_third', 'half', 'two_thirds']
+
+peaks_1_3 = Data()
+peaks_1_2 = Data()
+peaks_2_3 = Data()
+peaks_dict = {
+    'one_third': peaks_1_3, 
+    'half': peaks_1_2, 
+    'two_thirds': peaks_2_3
+}
+
+for i in range(len(fillings)):
+    filling = fillings[i]
+    D_lims, n_lims = input_dict[probe][filling].values()
+
+    save_figs = False
+    run_bootstrap = False
+    asymptote_args = (False, False)
+
+    null_model = lambda x, c: c
+    alt_model_1 = lambda x, b, c: b * x + c
+    alt_model_2 = lambda x, a, c: a * x**2 + c
+    models_to_compare = (null_model, alt_model_1, alt_model_2)
+
+    results = run_study(data_class, 
+                        D_lims, 
+                        probe, 
+                        step=step_size,
+                        n_lims=n_lims, 
+                        filling=filling, 
+                        models_to_compare=models_to_compare,
+                        run_bootstrap=run_bootstrap,)
+    _results = {_D_val: results[_D_val]}
+    fig = inspect_study_quality(_results, probe, filling=filling, save_figs=save_figs)
+    #fig = plt.gcf()
+    axes = fig.get_axes()
+
+    for ax_index in range(len(axes)):
+        
+        if len(axes[ax_index].get_lines()) > 0:
+            setattr(peaks_dict[filling], f'ax_{ax_index}', axes[ax_index])
+
+with open(base_path + f'jar//SI_peaks.pkl', 'wb') as f:
+    pickle.dump({
+        'one_third': peaks_1_3,
+        'half': peaks_1_2,
+        'two_thirds': peaks_2_3,
+    }, f)
+
+  
+D_correction = set_D_correction(probe)
+Data_class = prepare_data_set(data_class, D_cut=_D_val + D_correction, probe=probe)
+
+full_n_set_list = [
+    Data_class.nn_new_05, 
+    Data_class.nn_new, 
+    Data_class.nn_new_05, 
+    Data_class.nn_new_1, 
+    Data_class.nn_new, 
+    Data_class.nn_new_1, 
+    Data_class.nn_new, 
+    Data_class.nn_new_1, 
+    Data_class.nn_new
+]
+full_data_list = [
+    Data_class.z_values_20, 
+    Data_class.z_values_200, 
+    Data_class.z_values_05, 
+    Data_class.z_values_75, 
+    Data_class.z_values_1, 
+    Data_class.z_values_150, 
+    Data_class.z_values_2, 
+    Data_class.z_values_225, 
+    Data_class.z_values_4
+]
+
+with open(base_path + f'jar//SI_peaks_data.pkl', 'wb') as f:
+    pickle.dump({
+        'full_n_list': full_n_set_list,
+        'full_data_list': full_data_list,
+    }, f)
 
 #%% Goodness-of-fit: save data
 data_class = load_multiple_datasets('D:/TD5/database/')

@@ -94,12 +94,12 @@ results = run_study(data_class,
                     filling=filling, 
                     models_to_compare=models_to_compare,
                     run_bootstrap=run_bootstrap,)
-# inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
-# plot_study_results(results,
-#                    probe,
-#                    filling=filling,
-#                    save_figs=save_figs,
-#                    asymptote_args=asymptote_args)
+inspect_study_quality(results, probe, filling=filling, save_figs=save_figs)
+plot_study_results(results,
+                   probe,
+                   filling=filling,
+                   save_figs=save_figs,
+                   asymptote_args=asymptote_args)
 
 #%% extract data for paper plot - 1/2 coefficients D-dependence
 

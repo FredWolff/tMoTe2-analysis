@@ -1525,6 +1525,8 @@ def inspect_study_quality(result_dict: dict[float, Results],
             if filling == 'two_thirds':
                 fig2.savefig(f'/Volumes/STORE N GO/Plots/2-3/{probe}/D_cuts/{D_cut:.3f}_{probe}_peak_position_B.png', dpi=300)
     
+    return fig1
+
     #plt.close('all')
 
 def plot_study_results(result_dict: Results, 
