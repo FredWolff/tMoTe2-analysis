@@ -364,7 +364,7 @@ def load_multiple_datasets(path: str='Volumes/STORE N GO/TD5/database/') -> Data
 
     return Data_class
 
-def prepare_data_set(Data_class: Data, D_cut: Union[int,float], probe: str) -> Data:
+def prepare_data_set(Data_class: Data, D_cut: Union[int,float], probe: str, steep: bool=False) -> Data:
     """
     'probe' should be of form 'XX_YY' where XX is the top probe and YY is the bottom probe
     Supported probes are Rxx: '11_06', '19_20', '20_24', '06_05' and Rxy '11_19', '06_20', '05_24'
@@ -373,12 +373,16 @@ def prepare_data_set(Data_class: Data, D_cut: Union[int,float], probe: str) -> D
     m = cbg/ctg
     b = (D_cut*1e9*8.85e-12*2)/ctg
 
+    scale = 1
+    if steep:
+        scale = 0.49
+
     crossed_points = []
     for xi in range(141):
         for yi in range(121):
             x_val = Data_class.Vb_list[:, 0][xi]
             y_val = Data_class.Vt_list[0, :][yi]
-            if abs(y_val - (m * x_val + b)) < abs(1*(Data_class.Vt_list[0, :][1] - Data_class.Vt_list[0, :][0])):
+            if abs(y_val - (m * x_val + b)) < scale * abs(1*(Data_class.Vt_list[0, :][1] - Data_class.Vt_list[0, :][0])):
                 crossed_points.append((xi, yi))
 
     x_values = [Data_class.Vb_list[:, 0][xi] for xi, yi in crossed_points]
@@ -395,7 +399,7 @@ def prepare_data_set(Data_class: Data, D_cut: Union[int,float], probe: str) -> D
         for yi in range(91):
             x_val = Data_class.Vb_list_05[:, 0][xi]
             y_val = Data_class.Vt_list_05[0, :][yi]
-            if abs(y_val - (m * x_val + b)) < abs(1*(Data_class.Vt_list_05[0, :][1] - Data_class.Vt_list_05[0, :][0])):
+            if abs(y_val - (m * x_val + b)) < scale * abs(1*(Data_class.Vt_list_05[0, :][1] - Data_class.Vt_list_05[0, :][0])):
                 crossed_points.append((xi, yi))
 
     x_values = [Data_class.Vb_list_05[:, 0][xi] for xi, yi in crossed_points]
@@ -410,7 +414,7 @@ def prepare_data_set(Data_class: Data, D_cut: Union[int,float], probe: str) -> D
         for yi in range(81):
             x_val = Data_class.Vb_15[:, 0][xi]
             y_val = Data_class.Vt_15[0, :][yi]
-            if abs(y_val - (m * x_val + b)) < abs(1*(Data_class.Vt_15[0, :][1] - Data_class.Vt_15[0, :][0])):
+            if abs(y_val - (m * x_val + b)) < scale * abs(1*(Data_class.Vt_15[0, :][1] - Data_class.Vt_15[0, :][0])):
                 crossed_points.append((xi, yi))
 
     x_values = [Data_class.Vb_15[:, 0][xi] for xi, yi in crossed_points]

@@ -127,21 +127,33 @@ model2_color = 'purple'
 #%% peak fits
 with open(base_path + f'jar/SI_peaks.pkl', 'rb') as f:
     peaks_data = pickle.load(f)
+
+with open(base_path + f'jar/SI_peaks_data.pkl', 'rb') as f:
+    peaks_full_data = pickle.load(f)
+
+with open(base_path + f'jar/SI_peaks_data_steep.pkl', 'rb') as f:
+    peaks_full_data_steep = pickle.load(f)
 plt.close()
 
-fig = plt.figure(figsize=(fig_width_cm, 24))
+fig = plt.figure(figsize=(fig_width_cm, 36))
 gs = plt.GridSpec(100, 100, figure=fig)
 
-ax1_lim = 19
-ax1_1 = fig.add_subplot(gs[:ax1_lim, :17])
-ax1_2 = fig.add_subplot(gs[:ax1_lim, 21:38])
-ax1_3 = fig.add_subplot(gs[:ax1_lim, 43:59])
-ax1_4 = fig.add_subplot(gs[:ax1_lim, 64:80])
-ax1_5 = fig.add_subplot(gs[:ax1_lim, 85:])
-axes1 = [ax1_1, ax1_2, ax1_3, ax1_4, ax1_5]
+ax1_lim1 = (0, 12)
+ax1_lim2 = (17, 29)
+ax1_1 = fig.add_subplot(gs[ax1_lim1[0]:ax1_lim1[1], :17])
+ax1_2 = fig.add_subplot(gs[ax1_lim1[0]:ax1_lim1[1], 21:38])
+ax1_3 = fig.add_subplot(gs[ax1_lim1[0]:ax1_lim1[1], 43:59])
+ax1_4 = fig.add_subplot(gs[ax1_lim1[0]:ax1_lim1[1], 64:80])
+ax1_5 = fig.add_subplot(gs[ax1_lim1[0]:ax1_lim1[1], 85:])
+ax1_6 = fig.add_subplot(gs[ax1_lim2[0]:ax1_lim2[1], :17])
+ax1_7 = fig.add_subplot(gs[ax1_lim2[0]:ax1_lim2[1], 21:38])
+ax1_8 = fig.add_subplot(gs[ax1_lim2[0]:ax1_lim2[1], 43:60])
+ax1_9 = fig.add_subplot(gs[ax1_lim2[0]:ax1_lim2[1], 64:80])
+fitless_axes1 = [ax1_1, ax1_2, ax1_3, ax1_4]
+axes1 = [ax1_5, ax1_6, ax1_7, ax1_8, ax1_9]
 
-ax2_lim1 = (28, 47)
-ax2_lim2 = (53, 72)
+ax2_lim1 = (35, 47)
+ax2_lim2 = (52, 64)
 ax2_1 = fig.add_subplot(gs[ax2_lim1[0]:ax2_lim1[1], :17])
 ax2_2 = fig.add_subplot(gs[ax2_lim1[0]:ax2_lim1[1], 21:38])
 ax2_3 = fig.add_subplot(gs[ax2_lim1[0]:ax2_lim1[1], 43:59])
@@ -153,12 +165,18 @@ ax2_8 = fig.add_subplot(gs[ax2_lim2[0]:ax2_lim2[1], 43:60])
 ax2_9 = fig.add_subplot(gs[ax2_lim2[0]:ax2_lim2[1], 64:80])
 axes2 = [ax2_1, ax2_2, ax2_3, ax2_4, ax2_5, ax2_6, ax2_7, ax2_8, ax2_9]
 
-ax3_lim = 81
-ax3_1 = fig.add_subplot(gs[ax3_lim:, :17])
-ax3_2 = fig.add_subplot(gs[ax3_lim:, 21:38])
-ax3_3 = fig.add_subplot(gs[ax3_lim:, 43:60])
-ax3_4 = fig.add_subplot(gs[ax3_lim:, 64:80])
-ax3_5 = fig.add_subplot(gs[ax3_lim:, 85:])
+ax3_lim1 = (71, 83)
+ax3_lim2 = (88, 100)
+ax3_1 = fig.add_subplot(gs[ax3_lim1[0]:ax3_lim1[1], :17])
+ax3_2 = fig.add_subplot(gs[ax3_lim1[0]:ax3_lim1[1], 21:38])
+ax3_3 = fig.add_subplot(gs[ax3_lim1[0]:ax3_lim1[1], 43:59])
+ax3_4 = fig.add_subplot(gs[ax3_lim1[0]:ax3_lim1[1], 64:80])
+ax3_5 = fig.add_subplot(gs[ax3_lim1[0]:ax3_lim1[1], 85:])
+ax3_6 = fig.add_subplot(gs[ax3_lim2[0]:ax3_lim2[1], :17])
+ax3_7 = fig.add_subplot(gs[ax3_lim2[0]:ax3_lim2[1], 21:38])
+ax3_8 = fig.add_subplot(gs[ax3_lim2[0]:ax3_lim2[1], 43:60])
+ax3_9 = fig.add_subplot(gs[ax3_lim2[0]:ax3_lim2[1], 64:80])
+fitless_axes3 = [ax3_6, ax3_7, ax3_8, ax3_9]
 axes3 = [ax3_1, ax3_2, ax3_3, ax3_4, ax3_5]
 
 def transfer(ax_source, ax_target):
@@ -183,6 +201,34 @@ def transfer(ax_source, ax_target):
     ax_target.set_xlim(1e-12 * ax_source.get_xlim()[0], 1e-12 * ax_source.get_xlim()[1])
     ax_target.set_ylim(ax_source.get_ylim())
 
+def transfer_style(ax_source, ax_target, xdata, ydata, title, ylim=None, xlim=None):
+
+    line = ax_source.get_lines()[0]
+    ax_target.plot(
+        1e-12 * xdata,
+        ydata / R_Q,
+        color=line.get_color(),
+        linestyle=line.get_linestyle(),
+        marker=line.get_marker(),
+        label=line.get_label(),
+        linewidth=line.get_linewidth(),
+        markersize=line.get_markersize()
+    )
+
+    ax_target.set_xlabel(r'$n$ ($\times10^{12}$ cm$^{-2}$)')
+    ax_target.set_title(r'$\mu_0 H = $' + title)
+    
+    if xlim == None:
+        ax_target.set_xlim(1e-12 * ax_source.get_xlim()[0], 1e-12 * ax_source.get_xlim()[1])
+    else:
+        ax_target.set_xlim(*xlim)
+
+    if ylim == None:
+        ax_target.set_ylim(ax_source.get_ylim())
+    else:
+        ax_target.set_ylim(*ylim)
+        #ax_target.set_xlim(1e-12 * ax_source.get_xlim()[0]-0.4, 1e-12 * ax_source.get_xlim()[1])
+    
 axes_1_3 = sorted([attr for attr in dir(peaks_data['one_third']) if 'ax_' in attr])
 axes_1_2 = sorted([attr for attr in dir(peaks_data['half']) if 'ax_' in attr])
 axes_2_3 = sorted([attr for attr in dir(peaks_data['two_thirds']) if 'ax_' in attr])
@@ -198,11 +244,97 @@ for src_axes, tar_axes in zip([axes_1_3, axes_1_2, axes_2_3], [axes1, axes2, axe
         src_axes.pop(0)
         i += 1
 
+ax_style = getattr(peaks_data['one_third'], 'ax_4')
+gen1 = [
+    fitless_axes1, 
+    ['0.02T', '0.2T', '0.5T', '0.75T'],
+    peaks_full_data['full_n_list'][:4],
+    peaks_full_data['full_data_list'][:4]
+]
+for ax, title, xdata, ydata in zip(*gen1):
+    if title == '0.75T':
+        xarray = np.array(xdata) + corr_vec[0] - n_correction
+        indices = np.where((xarray > -1.5e12) & (xarray < -1.2e12))[0]
+        p0=[1e14, -1.35e12, 1e9, 0.1*R_Q, 0.1*R_Q/(5e11)]
+        popt, pcov = curve_fit(
+            lorentzian, 
+            xarray[indices], 
+            np.array(ydata)[indices], 
+            p0=p0,
+        )
+        ns = np.linspace(
+            4 * min(xarray[indices]), 
+            0.1 * max(xarray[indices]), 
+            301
+        )
+        ax.plot(ns*1e-12, 
+            lorentzian(ns, *popt)/R_Q, 
+            color='steelblue', 
+            label='fit'
+        )
+    transfer_style(
+        ax_style, 
+        ax, 
+        np.array(xdata) + corr_vec[0] - n_correction, 
+        np.array(ydata), 
+        title
+    )
+
+ax_style = getattr(peaks_data['two_thirds'], 'ax_4')
+gen2 = [
+    fitless_axes3[:-1], 
+    ['1.5T', '2T', '2.25T'],
+    peaks_full_data_steep['full_n_list_steep'][5:-1],
+    peaks_full_data_steep['full_data_list_steep'][5:-1]
+]
+filling = 'two_thirds'
+p0 = determine_init_params(probe, 0.12, filling)
+for ax, title, xdata, ydata in zip(*gen2):
+    xarray = np.array(xdata) + corr_vec[0] - n_correction
+    indices = np.where((xarray > -3.1e12) & (xarray < -2.55e12))[0]
+    p0=[1e15, -2.8e12, 1e10, R_Q, -0.1*R_Q/(5e11)]
+    popt, pcov = curve_fit(
+        lorentzian, 
+        xarray[indices], 
+        np.array(ydata)[indices], 
+        p0=p0,
+    )
+    transfer_style(
+        ax_style, 
+        ax, 
+        xarray, 
+        np.array(ydata),  
+        title,
+        ylim=[0.28, 2],
+        # xlim=[-3.5, -2]
+    )
+    ns = np.linspace(
+        1.2* min(xarray[indices]), 
+        0.8 * max(xarray[indices]), 
+        101
+    )
+    ax.plot(ns*1e-12, 
+        lorentzian(ns, *popt)/R_Q, 
+        color='steelblue', 
+        label='fit'
+    )
+    
+
+transfer_style(
+    ax_style, 
+    fitless_axes3[-1], 
+    np.array(peaks_full_data_steep['full_n_list_steep'][-1]) + corr_vec[0] - n_correction, 
+    np.array(peaks_full_data_steep['full_data_list_steep'][-1]),  
+    '4T',
+    ylim=[3, 35]
+)
+
 ax1_1.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
+ax1_6.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
 ax2_1.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
 ax2_6.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
 ax3_1.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
-
+ax3_6.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
 
 labels = ['(a)', '(b)', '(c)']
 
@@ -224,6 +356,11 @@ fig.savefig(
     transparent=True,
     backend='pdf',
 )
+
+# plt.figure()
+# plt.plot(np.array(gen1[3][1]), '.')
+# plt.xlim([50, 90])
+# plt.ylim(0*R_Q, 5*R_Q)
 
 #%% Goodness-of-fit
 fig = plt.figure(figsize=(fig_width_cm, 13))
@@ -1157,7 +1294,7 @@ class Data:
 
 #%% Peak fits: save data
 data_class = load_multiple_datasets('D:/TD5/database/')
-
+#%%
 _D_val = 0.12
 
 probe = '11_06'
@@ -1242,6 +1379,42 @@ with open(base_path + f'jar//SI_peaks_data.pkl', 'wb') as f:
     pickle.dump({
         'full_n_list': full_n_set_list,
         'full_data_list': full_data_list,
+    }, f)
+
+Data_class = prepare_data_set(
+    data_class, 
+    D_cut=_D_val + D_correction, 
+    probe=probe, 
+    steep=True
+)
+
+full_n_set_list_steep = [
+    Data_class.nn_new_05, 
+    Data_class.nn_new, 
+    Data_class.nn_new_05, 
+    Data_class.nn_new_1, 
+    Data_class.nn_new, 
+    Data_class.nn_new_1, 
+    Data_class.nn_new, 
+    Data_class.nn_new_1, 
+    Data_class.nn_new
+]
+full_data_list_steep = [
+    Data_class.z_values_20, 
+    Data_class.z_values_200, 
+    Data_class.z_values_05, 
+    Data_class.z_values_75, 
+    Data_class.z_values_1, 
+    Data_class.z_values_150, 
+    Data_class.z_values_2, 
+    Data_class.z_values_225, 
+    Data_class.z_values_4
+]
+
+with open(base_path + f'jar//SI_peaks_data_steep.pkl', 'wb') as f:
+    pickle.dump({
+        'full_n_list_steep': full_n_set_list_steep,
+        'full_data_list_steep': full_data_list_steep,
     }, f)
 
 #%% Goodness-of-fit: save data
