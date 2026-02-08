@@ -928,10 +928,103 @@ im1 = ax1.pcolormesh(
     rasterized=True
 )
 
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+
+def sigmoid(x, L, U, x0, k):
+    """Sigmoid function."""
+    return L + (U - L) / (1 + np.exp(-k * (x - x0)))
+
+def fit_sigmoid_and_extract_transition(y_values, x0_guess, x_values=None):
+    """
+    Fit a sigmoid to y_values and extract the transition point.
+
+    Args:
+        y_values: 1D array of y-values for a single parameter value.
+        x_values: 1D array of x-values (if None, uses indices as x).
+
+    Returns:
+        x0: Transition midpoint.
+        popt: Fitted parameters [L, U, x0, k].
+    """
+    if x_values is None:
+        x_values = np.arange(len(y_values))
+
+    # Initial guesses: L=min(y), U=max(y), x0=midpoint, k=1
+    L_guess = np.max(y_values)
+    U_guess = np.min(y_values)
+    k_guess = 1e-11
+
+    # Bounds to keep parameters physically meaningful
+    bounds = ([-R_Q, 0, -5e12, 0], [R_Q, 2 * R_Q, 0, np.inf])
+
+    # Fit the sigmoid
+    popt, pcov = curve_fit(
+        sigmoid, x_values, y_values,
+        p0=[L_guess, U_guess, x0_guess, k_guess],
+        #bounds=bounds,
+        maxfev=10000
+    )
+
+    return popt[2], popt, pcov  # Return x0 (transition point) and all parameters
+
+x0_guess = -4e12
+transition_points = []
+transition_err = []
+for row in Rxy_06_20_anti[:40, 90:150]:
+    x0, _, pcov = fit_sigmoid_and_extract_transition(
+        row, 
+        x0_guess, 
+        nn[0, 90:150]
+    )
+    transition_points.append(x0)
+    transition_err.append(np.sqrt(pcov[2, 2]))
+
+import numpy as np
+from scipy.optimize import curve_fit
+
+# Linear model
+def linear_model(x, m, c):
+    return m * x + c
+
+# Prepare data
+x = Bperp[:40, 0]
+y = transition_points
+yerr = transition_err
+
+# Fit
+popt, pcov = curve_fit(
+    linear_model, 
+    x, 
+    y, 
+    sigma=yerr, 
+    absolute_sigma=True,
+    p0=[-elementary_q * 1e-4/ h_Planck, -4e12]
+)
+m_fit, c_fit = popt
+m_err, c_err = np.sqrt(np.diag(pcov))
+
+ax1.errorbar(
+    np.array(transition_points)*1e-12,
+    Bperp[:40, 0],
+    xerr=10*np.array(transition_err)*1e-12,
+    fmt='none', ecolor='black', elinewidth=0.5, capsize=1, capthick=0.5
+)
+ax1.plot(
+    np.array([linear_model(x, *popt) for x in Bperp[:40, 0]])*1e-12,
+    Bperp[:40, 0],
+)
+
+print(r"slope for $\nu = -1$ = " + \
+      str((m_fit / (elementary_q * 1e-4/ h_Planck))) + \
+      "+/-" + \
+      str((m_err / (elementary_q * 1e-4/ h_Planck))))
+
 ax1_extra = ax1.twiny()
 ax1.set_ylabel(r'$\mu_0 H$ (T)')
 ax1.set_xlabel(r'$n$ ($\times10^{12}$ cm$^{-2}$)')
-ax1.set_xlim(-4.5, -3.6)
+ax1.set_xlim(-4.6, -3.6)
 plt.colorbar(im1, cax=cax1, label=r'$R_{xy}$ (h/e$^2$)')
 
 tick_labels = ax1.get_xticks()
@@ -955,7 +1048,7 @@ DD_uncorr = topo_data['topology_11_06_20'].DD_B_finite_D
 Rxx_11_06 = topo_data['topology_11_06_20'].Rxx_11_06_sym_B_finite_D
 Rxy_06_20 = topo_data['topology_11_06_20'].Rxy_06_20_anti_B_finite_D
 
-D_index = 1
+D_index = 0
 
 nn = nn_uncorr + corr_vec[0]
 DD = DD_uncorr - corr_vec[1]
@@ -969,6 +1062,53 @@ im2 = ax2.pcolormesh(
     cmap=Rxy_cmap,
     rasterized=True
 )
+
+x0_guess = -2.5e12
+transition_points = []
+transition_err = []
+for row in Rxy_06_20[:75, D_index]:
+    x0, _, pcov = fit_sigmoid_and_extract_transition(
+        -row, 
+        x0_guess, 
+        nn[0, D_index]
+    )
+    transition_points.append(x0)
+    transition_err.append(np.sqrt(pcov[2, 2]))
+
+# Prepare data
+x = Bperp[:75, D_index, 0]
+y = transition_points[:]
+yerr = transition_err[:]
+
+# Fit
+popt, pcov = curve_fit(
+    linear_model, 
+    x, 
+    y, 
+    sigma=yerr, 
+    absolute_sigma=True,
+    p0=[-elementary_q * 1e-4/ h_Planck, -2.5e12]
+)
+m_fit, c_fit = popt
+m_err, c_err = np.sqrt(np.diag(pcov))
+
+ax2.errorbar(
+    np.array(transition_points)*1e-12,
+    Bperp[:75, D_index, 0],
+    xerr=10*np.array(transition_err)*1e-12,
+    fmt='none', ecolor='black', elinewidth=0.5, capsize=1, capthick=0.5
+)
+ax2.plot(
+    np.array([linear_model(x, *popt) for x in x])*1e-12,
+    x,
+)
+
+print(r"slope for $\nu = -2/3$ = " + \
+      str((m_fit / (elementary_q * 1e-4/ h_Planck))) + \
+      "+/-" + \
+      str((m_err / (elementary_q * 1e-4/ h_Planck))))
+
+
 ax2.set_xlabel(r'$n$ ($\times10^{12}$ cm$^{-2}$)')
 ax2.set_ylabel(r'$\mu_0 H $ (T)')
 ax2.set_ylim(-4, 4)
@@ -999,7 +1139,7 @@ Rxy_06_20 = topo_data['topology_11_06_20'].Rxy_06_20
 nn = nn_uncorr + corr_vec[0]
 
 im3 = ax3.plot(1e-12 * nn, Rxx_11_06/R_Q, color=Rxx_color)
-ax3.set_xlabel(r'$n$ (10^{12}$ cm$^{-2}$)')
+ax3.set_xlabel(r'$n$ (10$^{12}$ cm$^{-2}$)')
 ax3.set_ylabel(r'$R_{xx}$ (h/e$^2$)')
 ax3.spines['left'].set_color(Rxx_color)
 ax3.set_xlim(-4.5, -1.85)
@@ -1028,43 +1168,112 @@ ax3_extra.set_xticklabels(v_tick_labels)
 ax3_extra.hlines(1, -5, -1, colors='black', linestyles='--')
 
 ########## (d) ##########
+with open('jar/fig1_gg_map.pickle', 'rb') as f:
+    fig1_gg_map = pickle.load(f)
 
-nn_uncorr = topo_data['topology_11_06_20'].nn_B_finite_D
-Bperp = topo_data['topology_11_06_20'].Bperp_B_finite_D
-DD = topo_data['topology_11_06_20'].DD_B_finite_D
-Rxx_11_06 = topo_data['topology_11_06_20'].Rxx_11_06_sym_B_finite_D
-Rxy_06_20 = topo_data['topology_11_06_20'].Rxy_06_20_anti_B_finite_D
-
-D_index = 2
+nn_uncorr, DD_uncorr = fig1_gg_map.nn, fig1_gg_map.DD
+Rxx_200 = fig1_gg_map.Rxx_11_06_sym_200 / R_Q
+Rxy_200 = fig1_gg_map.Rxy_11_19_sym_200 / R_Q
+Vt, Vb = n_D_to_Vt_Vb(nn_uncorr, DD_uncorr, cbg, ctg)
 
 nn = nn_uncorr + corr_vec[0]
+DD = DD_uncorr - corr_vec[1]
+probe = '11_06'
+n_to_12_v = get_v_conversion(probe)
+vv = nn / np.abs(n_to_12_v)
 
-im4 = ax4.pcolormesh(
-    1e-12 * nn[:, D_index], 
-    Bperp[:, D_index], 
-    Rxx_11_06[:, D_index]/R_Q, 
-    norm=mcolors.LogNorm(vmin=1e-1, vmax=1e2), 
-    cmap=Rxx_cmap,
+Rxx_cmap.set_bad(color='black')
+
+xx_z_lims = (0.01, 50)
+xy_z_lims = (-2, 2)
+# x_lims = (-5.1, 0.05)
+# v_lims = (-5.1e12 / np.abs(n_to_12_v), 
+#             0.05e12 / np.abs(n_to_12_v))
+
+# mesh4 = ax4.pcolormesh(
+#     1e-12 * nn, 
+#     DD, 
+#     Rxx_200, 
+#     norm=matplotlib.colors.LogNorm(
+#         vmin=xx_z_lims[0], 
+#         vmax=xx_z_lims[1]
+#     ),
+#     cmap=Rxx_cmap,
+#     rasterized=True
+# )
+
+mesh4 = ax4.pcolormesh(
+    1e-12 * nn, 
+    DD, 
+    Rxy_200, 
+    vmin=xy_z_lims[0],
+    vmax=xy_z_lims[1],
+    cmap=Rxy_cmap,
     rasterized=True
 )
-ax4.set_xlabel(r'$n$ ($\times10^{12}$ cm$^{-2}$)')
-ax4.set_ylabel(r'$\mu_0 H$ (T)')
-tick_labels = ax4.get_xticks()
-tick_labels = list(tick_labels)
-ax4.xaxis.set_major_locator(MultipleLocator(0.5))
-ax4.xaxis.set_minor_locator(MultipleLocator(0.25))
-ax4.set_yticks([-4, -2, 0, 2, 4])
-ax4.yaxis.set_minor_locator(MultipleLocator(1))
 
-plt.colorbar(im4, cax=cax4, label=r'$R_{xx}$ (h/e$^2$)')
+ax4.hlines(0.035, -4.5, -3.6, colors='blue', linestyles='--')
+ax4.hlines(0.005, -3.5, -2.6, colors='red', linestyles='--')
 
 ax4_extra = ax4.twiny()
+
+cbar1 = plt.colorbar(mesh4, cax=cax4)
+cbar1.set_label(r'$R_{xx}$ (h/e$^2$)')
+ax4.set_xlabel(r'$n$ ($\times10^{12}$ cm$^{-2}$)')
+ax4.set_ylabel(r'$D/\epsilon_0$ (V/nm)')
+ax4.xaxis.set_major_locator(MultipleLocator(2))
+ax4.xaxis.set_minor_locator(MultipleLocator(1))
+ax4.yaxis.set_major_locator(MultipleLocator(0.2))
+ax4.yaxis.set_minor_locator(MultipleLocator(0.1))
+
 ax4_extra.set_xlabel(r'$\nu$')
-ax4_extra.set_xlim(ax4.get_xlim() / np.abs(n_to_12_v))
-v_ticks = 1e-12 * np.array([-2/3])
-v_tick_labels = ['-2/3']
+ax4_extra.set_xlim(ax2.get_xlim() / np.abs(n_to_12_v))
+v_ticks = 1e-12 * np.array([-1, -2/3, -1/2, -1/3, 0])
+v_tick_labels = ['-1', '-2/3', '-1/2', '-1/3', '0']
 ax4_extra.set_xticks(v_ticks)
 ax4_extra.set_xticklabels(v_tick_labels)
+
+ax4.set_xlim(-4.5, -2)
+ax4.set_ylim(-0.1, 0.2)
+
+########## topology reemergence at field ##########
+# nn_uncorr = topo_data['topology_11_06_20'].nn_B_finite_D
+# Bperp = topo_data['topology_11_06_20'].Bperp_B_finite_D
+# DD = topo_data['topology_11_06_20'].DD_B_finite_D
+# Rxx_11_06 = topo_data['topology_11_06_20'].Rxx_11_06_sym_B_finite_D
+# Rxy_06_20 = topo_data['topology_11_06_20'].Rxy_06_20_anti_B_finite_D
+
+# D_index = 2
+
+# nn = nn_uncorr + corr_vec[0]
+
+# im4 = ax4.pcolormesh(
+#     1e-12 * nn[:, D_index], 
+#     Bperp[:, D_index], 
+#     Rxx_11_06[:, D_index]/R_Q, 
+#     norm=mcolors.LogNorm(vmin=1e-1, vmax=1e2), 
+#     cmap=Rxx_cmap,
+#     rasterized=True
+# )
+# ax4.set_xlabel(r'$n$ ($\times10^{12}$ cm$^{-2}$)')
+# ax4.set_ylabel(r'$\mu_0 H$ (T)')
+# tick_labels = ax4.get_xticks()
+# tick_labels = list(tick_labels)
+# ax4.xaxis.set_major_locator(MultipleLocator(0.5))
+# ax4.xaxis.set_minor_locator(MultipleLocator(0.25))
+# ax4.set_yticks([-4, -2, 0, 2, 4])
+# ax4.yaxis.set_minor_locator(MultipleLocator(1))
+
+# plt.colorbar(im4, cax=cax4, label=r'$R_{xx}$ (h/e$^2$)')
+
+# ax4_extra = ax4.twiny()
+# ax4_extra.set_xlabel(r'$\nu$')
+# ax4_extra.set_xlim(ax4.get_xlim() / np.abs(n_to_12_v))
+# v_ticks = 1e-12 * np.array([-2/3])
+# v_tick_labels = ['-2/3']
+# ax4_extra.set_xticks(v_ticks)
+# ax4_extra.set_xticklabels(v_tick_labels)
+##########
 
 labels = ['(a)', '(b)', '(c)', '(d)']
 
@@ -1079,13 +1288,13 @@ for ax, label in zip([ax1, ax2, ax3, ax4], labels):
         ha='left'
     )
 
-fig.savefig(
-    base_path + "SI_fig_exports/fig_topology.pdf", 
-    dpi=300, 
-    bbox_inches="tight", 
-    transparent=True,
-    backend='pdf',
-)
+# fig.savefig(
+#     base_path + "SI_fig_exports/fig_topology.pdf", 
+#     dpi=300, 
+#     bbox_inches="tight", 
+#     transparent=True,
+#     backend='pdf',
+# )
 
 #%% D-B competition
 fig = plt.figure(figsize=(fig_width_cm, 7))
