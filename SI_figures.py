@@ -124,6 +124,114 @@ in_out_style = {'in': 'solid', 'out': 'dashed'}
 model1_color = 'orange'
 model2_color = 'purple'
 
+#%% expanded gof at D = 0.12
+
+with open(base_path + f'jar/SI_peaks.pkl', 'rb') as f:
+    peaks_data = pickle.load(f)
+
+with open(base_path + f'jar/SI_peaks_expans.pkl', 'rb') as f:
+    peaks_expans = pickle.load(f)['expans']
+
+if 'data_class' not in globals():
+    data_class = load_multiple_datasets('D:/TD5/database/')
+
+probe = '11_06'
+step_size = 0.001
+for filling in ['half', 'one_third', 'two_thirds']:
+    D_lims, n_lims = input_dict[probe][filling].values()
+
+    save_figs = False
+    run_bootstrap = False
+    asymptote_args = (False, False)
+
+    null_model = lambda x, c: c
+    alt_model_1 = lambda x, b, c: b * x + c
+    alt_model_2 = lambda x, a, c: a * x**2 + c
+    models_to_compare = (null_model, alt_model_1, alt_model_2)
+
+    results = run_study(data_class, 
+                        D_lims, 
+                        probe, 
+                        step=step_size,
+                        n_lims=n_lims, 
+                        filling=filling, 
+                        models_to_compare=models_to_compare,
+                        run_bootstrap=run_bootstrap,)
+
+    p1_list = []
+    p2_list = []
+    a_list = []
+    a_unc = []
+    model1_popt = []
+    model2_popt = []
+    alt1_rss = []
+    alt2_rss = []
+
+    keys = list(results.keys())
+    cut = 0.12
+    result = results[cut]
+
+    unc = result.fit_errors[:, 1]
+    if filling == 'one_third':
+        x0, unc_x0 = getattr(peaks_expans, 'one_third_75')
+        unc = np.concatenate((unc, np.array([unc_x0])))
+        x_coords = np.concatenate((result.x_max_coords, np.array([x0])))
+        B_set_list = np.concatenate((result.B_set_list, np.array([0.75])))
+    else:
+        x_coords = result.x_max_coords
+        B_set_list = result.B_set_list
+
+    c0 = result.x_max_coords[0]
+    popt_null, pcov_null = curve_fit(models_to_compare[0], 
+                            B_set_list, 
+                            x_coords, 
+                            p0=c0,
+                            sigma=unc,
+                            absolute_sigma=True,
+                            maxfev=5000)
+
+    b0 = (result.x_max_coords[-1] - result.x_max_coords[0]) / (result.B_set_list[-1] - result.B_set_list[0])
+    b0 = -1e9
+    popt_1, pcov_1 = curve_fit(models_to_compare[1], 
+                            B_set_list, 
+                            x_coords, 
+                            p0=(b0, c0),
+                            sigma=unc,
+                            absolute_sigma=True,
+                            maxfev=5000)
+
+    a0 = np.sqrt(abs(result.x_max_coords[-1] - result.x_max_coords[0])) / (result.B_set_list[-1] - result.B_set_list[0])
+    a0 = -1e10
+    popt_2, pcov_2 = curve_fit(models_to_compare[2], 
+                            B_set_list, 
+                            x_coords, 
+                            p0=(a0, c0),
+                            sigma=unc,
+                            absolute_sigma=True,
+                            maxfev=5000)
+
+    # After fitting:
+    y_obs = result.x_max_coords
+    y_null_fit = np.ones_like(result.B_set_list) * models_to_compare[0](np.array(result.B_set_list), *popt_null)
+    y_alt1_fit = models_to_compare[1](np.array(result.B_set_list), *popt_1)
+    y_alt2_fit = models_to_compare[2](np.array(result.B_set_list), *popt_2)
+
+    F1, p1 = f_test(y_obs, y_null_fit, y_alt1_fit, 1, 2)  # null vs. alt1
+    F2, p2 = f_test(y_obs, y_null_fit, y_alt2_fit, 1, 2)  # null vs. alt2
+    p1_list.append(p1)
+    p2_list.append(p2)
+
+    a_list.append(popt_2[0])
+    a_unc.append(np.sqrt(pcov_2[0,0]))
+    model1_popt.append(popt_1)
+    model2_popt.append(popt_2)
+
+    alt1_rss.append(np.sum((y_obs - y_alt1_fit) ** 2))
+    alt2_rss.append(np.sum((y_obs - y_alt2_fit) ** 2))
+
+    print(f'{filling}: p1 = {p1:.2e}, p2 = {p2:.2e}')
+
+
 #%% peak fits
 with open(base_path + f'jar/SI_peaks.pkl', 'rb') as f:
     peaks_data = pickle.load(f)
@@ -134,6 +242,8 @@ with open(base_path + f'jar/SI_peaks_data.pkl', 'rb') as f:
 with open(base_path + f'jar/SI_peaks_data_steep.pkl', 'rb') as f:
     peaks_full_data_steep = pickle.load(f)
 plt.close()
+
+expans = Data()
 
 fig = plt.figure(figsize=(fig_width_cm, 36))
 gs = plt.GridSpec(100, 100, figure=fig)
@@ -272,6 +382,12 @@ for ax, title, xdata, ydata in zip(*gen1):
             color='steelblue', 
             label='fit'
         )
+        setattr(
+            expans, 
+            'one_third_75', 
+            [popt[1], np.sqrt(np.diag(pcov)[1])]
+        )
+
     transfer_style(
         ax_style, 
         ax, 
@@ -318,8 +434,12 @@ for ax, title, xdata, ydata in zip(*gen2):
         color='steelblue', 
         label='fit'
     )
+    setattr(
+        expans, 
+        f'two_thirds_{title.replace(".", "")}', 
+        [popt[1], np.sqrt(np.diag(pcov)[1])]
+    )
     
-
 transfer_style(
     ax_style, 
     fitless_axes3[-1], 
@@ -356,6 +476,11 @@ fig.savefig(
     transparent=True,
     backend='pdf',
 )
+
+with open(base_path + f'jar/SI_peaks_expans.pkl', 'wb') as f:
+    pickle.dump({
+            'expans': expans,
+        }, f)
 
 # plt.figure()
 # plt.plot(np.array(gen1[3][1]), '.')
