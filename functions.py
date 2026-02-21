@@ -2435,10 +2435,10 @@ def create_fig4_ax1(
     b_d = fitted_B_half
     c_d = fitted_B_two_thirds
 
-    capthick = 3
-    capsize = 8
+    capthick = 0
+    capsize = 0
     elinewidth = 2
-    markeredgewidth = 2
+    markeredgewidth = 0
     markersize = 9
     
     ax1.errorbar(
@@ -2562,6 +2562,7 @@ def create_fig4_ax1_ins(
         color_list: list[str],
         in_out_style: dict[str],
         probe: str,
+        rasterized: bool = False,
 ) -> None:
     
     nn = B_n_data.nn + corr_vec[0]
@@ -2585,7 +2586,7 @@ def create_fig4_ax1_ins(
         R_array,
         norm=matplotlib.colors.LogNorm(vmin=z_lims[0], vmax=z_lims[1]),
         cmap=cmap,
-        rasterized=True,
+        rasterized=rasterized,
     )
 
     B_lim = np.array([-0.05, 2.5])
@@ -2642,7 +2643,7 @@ def create_fig4_ax1_ins(
     )
 
     ax1_ins.set_xticks([n_to_12_v/3, n_to_12_v/2, 2*n_to_12_v/3])
-    ax1_ins.set_xticklabels(['1/3', '1/2', '2/3'])
+    ax1_ins.set_xticklabels(['-1/3', '-1/2', '-2/3'])
     ax1_ins.yaxis.set_major_locator(MultipleLocator(2))
     ax1_ins.yaxis.set_minor_locator(MultipleLocator(1))
     ax1_ins.set_xlim(x_lims)
@@ -2760,6 +2761,7 @@ def create_fig4_ax3(
         ax3: matplotlib.axes.Axes,
         D_dependence_data: dict[any],
         filling_color: str,
+        shape_list: list[str],
 ) -> None:
     
     D_list = D_dependence_data['D_list']
@@ -2767,10 +2769,21 @@ def create_fig4_ax3(
     B_list_gen = D_dependence_data['B_list_gen']
     #color_list = D_dependence_data['color_list']
     color_list = generate_con_color(filling_color, len(D_list))
+    x_data = D_dependence_data['fit_array_list']
+    y_data = D_dependence_data['B_array_list']
+    x_err = D_dependence_data['peak_fit_loc_err']
+
+    capthick = 0
+    capsize = 0
+    elinewidth = 2
+    markeredgewidth = 0
+    markersize = 9
+
+    D_index_corr = -15
     
     line_handles = []
 
-    for i in [0, len(D_list)//2, -1]:#range(len(D_list)):
+    for i in [15, len(D_list)//2 + 2, -11]:#range(len(D_list)):
 
         line, = ax3.plot(
             model_list[i], 
@@ -2779,6 +2792,21 @@ def create_fig4_ax3(
         )
         line_handles.append(line)
 
+        ax3.errorbar(
+            x_data[i], 
+            y_data[i], 
+            fmt=shape_list[0],
+            xerr=x_err[i],
+            label='1/3', 
+            color=color_list[i],
+            capthick=capthick,
+            capsize=capsize,
+            elinewidth=elinewidth,
+            markeredgecolor='black',
+            markeredgewidth=markeredgewidth,
+            markersize=markersize,
+    )
+        
     leg = ax3.legend(
         handles=[
             line_handles[0], 
@@ -2786,9 +2814,9 @@ def create_fig4_ax3(
             line_handles[-1],
         ], 
         labels=[
-            f'{D_list[0]:.2f}', 
-            f'{D_list[len(D_list)//2 - 3]:.2f}',
-            f'{D_list[-6]:.2f}',
+            f'{D_list[15 + D_index_corr]:.2f}', 
+            f'{D_list[len(D_list)//2 + 2 + D_index_corr]:.2f}',
+            f'{D_list[-11 + D_index_corr]:.2f}',
         ],
         title=r'$D/\epsilon_{0}$ (V/nm)',
     )
@@ -2799,7 +2827,8 @@ def create_fig4_ax3(
     ax3.xaxis.set_minor_locator(MultipleLocator(1e11))
     ax3.yaxis.set_minor_locator(MultipleLocator(.5))
 
-    ax3.set_ylim(0, 4.01)
+    ax3.set_ylim(0, 4.21)
+    ax3.set_xlim(-2.65e12, -2.05e12)
     ax3.set_ylabel(r'$\mu_0 H$ (T)')
     ax3.set_xlabel(r'$n$ ($\times 10^{12}$ cm$^{-2}$)')
 

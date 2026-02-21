@@ -32,6 +32,19 @@ ppcm = ppi/inch_to_cm
 fig_width_pt = 515 #pt
 fig_width_cm = fig_width_pt/ppcm
 
+####### mac #########
+# import_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis'
+# sys.path.append(import_path)
+# from functions import *
+
+# plot_path = '/Volumes/STORE N GO/analysis_folder/peak_movement/tMoTe2-analysis/'
+# if os.getcwd() != plot_path:
+#     os.chdir(plot_path)
+#######################
+
+###### windows #########
+base_path = 'C://Users//frede//Documents//tMoTe2-analysis//'
+
 import_path = 'D:/analysis_folder/peak_movement/tMoTe2-analysis'
 sys.path.append(import_path)
 from functions import *
@@ -39,6 +52,7 @@ from functions import *
 plot_path = 'D:/analysis_folder/peak_movement/tMoTe2-analysis/'
 if os.getcwd() != plot_path:
     os.chdir(plot_path)
+#######################
 
 # font = {'fontname':'Comic Sans MS'}
 # plt.rcParams["font.family"] = "serif"
@@ -62,9 +76,9 @@ filling_colors = {
     'two_thirds': color_2_3
 }
 
-color_20_06 = 'black'#'#4682B4' # steelblue 
-color_06_11 = 'lime'#'grey'#'#FF4500' # orangered
-color_19_20 = 'forestgreen'#'black'#'#FFD700' # gold
+color_20_06 = 'darkmagenta'#'black'#'#4682B4' # steelblue 
+color_06_11 = 'royalblue'#'lime'#'grey'#'#FF4500' # orangered
+color_19_20 = 'DarkBlue'#'forestgreen'#'black'#'#FFD700' # gold
 
 probe_colors = [color_20_06, color_06_11, color_19_20]
 
@@ -118,6 +132,8 @@ uni_D_corr = probe_dependence_half['D_correction']
 corr_vec = [n_corr, uni_D_corr]
 
 in_out_style = {'in': 'solid', 'out': 'dashed'}
+
+rasterized =  True
 
 #%% Fig 1
 fig1 = plt.figure(figsize=(16, 10))
@@ -236,6 +252,7 @@ ax1_top, ax2_top = create_fig2_ax12(
     fig2_gg_map, 
     Rxx_cmap,
     corr_vec,
+    rasterized=rasterized
 )
 
 #### ax3 ####
@@ -249,6 +266,7 @@ ax3_top = create_fig2_ax3(
     B_n_data, 
     Rxx_cmap,
     corr_vec,
+    rasterized=rasterized,
 )
 
 #### ax4 ####
@@ -331,7 +349,7 @@ fig2.savefig(
 
 #%% Fig 4
 
-fig4 = plt.figure(figsize=(fig_width_cm, 8))
+fig4 = plt.figure(figsize=(fig_width_cm, 8), dpi=300)
 
 gs = plt.GridSpec(100, 100, figure=fig4)
 ax1 = fig4.add_subplot(gs[:, :58])
@@ -345,14 +363,89 @@ ax3 = fig4.add_subplot(gs[:44, 66:])
 ax4 = fig4.add_subplot(gs[57:, 66:])
 
 #### ax1 #### data from "discrete_v_B_dependence.py"
-with open('jar/B_dependence_one_third_paper_plot.pickle', 'rb') as f:
+# with open('jar/B_dependence_one_third_paper_plot.pickle', 'rb') as f:
+with open('jar/B_dependence_one_third_paper_plot_small_err.pickle', 'rb') as f:
     fitted_B_one_third = pickle.load(f)
 
-with open('jar/B_dependence_half_paper_plot.pickle', 'rb') as f:
+# with open('jar/B_dependence_half_paper_plot.pickle', 'rb') as f:
+with open('jar/B_dependence_half_paper_plot_small_err.pickle', 'rb') as f:
     fitted_B_half = pickle.load(f)
 
-with open('jar/B_dependence_two_thirds_paper_plot.pickle', 'rb') as f:
+# with open('jar/B_dependence_two_thirds_paper_plot.pickle', 'rb') as f:
+with open('jar/B_dependence_two_thirds_paper_plot_small_err.pickle', 'rb') as f:
     fitted_B_two_thirds = pickle.load(f)
+
+with open(base_path + f'jar/SI_peaks_expans.pkl', 'rb') as f:
+    expans = pickle.load(f)
+
+######## add points at difficult fit field values ############
+
+####### one third ########
+B_one_third = np.zeros(len(fitted_B_one_third['B_array']) + 1)
+B_one_third[0] = 0.75
+B_one_third[1:] = fitted_B_one_third['B_array']
+fitted_B_one_third['B_array'] = B_one_third
+
+fit_one_third = np.zeros(len(fitted_B_one_third['fit_array']) + 1)
+fit_one_third[0] = expans['expans'].one_third_75[0]
+fit_one_third[1:] = fitted_B_one_third['fit_array']
+fitted_B_one_third['fit_array'] = fit_one_third
+
+fit_one_third = np.zeros(len(fitted_B_one_third['peak_loc_err']) + 1)
+fit_one_third[0] = expans['expans'].one_third_75[1]
+fit_one_third[1:] = fitted_B_one_third['peak_loc_err']
+fitted_B_one_third['peak_loc_err'] = fit_one_third
+
+fitted_B_one_third['y_0'] = fitted_B_one_third['fit_array'][0]
+popt, pcov = curve_fit(
+    lambda x, c: fitted_B_one_third['model_function'](x, 0, c),
+    fitted_B_one_third['B_array'],
+    fitted_B_one_third['fit_array'],
+    sigma=fitted_B_one_third['peak_loc_err'],
+    p0=[fitted_B_one_third['y_0']],
+    absolute_sigma=True
+)
+fit_params = fitted_B_one_third['fit_params']
+fit_params[1] = popt - fitted_B_one_third['n_post_correction']
+fitted_B_one_third['fit_params'] = fit_params
+
+######### two thirds ########
+B_one_third = np.zeros(len(fitted_B_two_thirds['B_array']) + 3)
+B_one_third[-1] = 1.5
+B_one_third[-2] = 2
+B_one_third[-3] = 2.25
+B_one_third[:-3] = fitted_B_two_thirds['B_array']
+fitted_B_two_thirds['B_array'] = B_one_third
+
+fit_two_third = np.zeros(len(fitted_B_two_thirds['fit_array']) + 3)
+fit_two_third[-1] = expans['expans'].two_thirds_15T[0]
+fit_two_third[-2] = expans['expans'].two_thirds_2T[0]
+fit_two_third[-3] = expans['expans'].two_thirds_225T[0]
+fit_two_third[:-3] = fitted_B_two_thirds['fit_array']
+fitted_B_two_thirds['fit_array'] = fit_two_third
+
+fit_two_thirds = np.zeros(len(fitted_B_two_thirds['peak_loc_err']) + 3)
+fit_two_thirds[-1] = expans['expans'].two_thirds_15T[1]
+fit_two_thirds[-2] = expans['expans'].two_thirds_2T[1]
+fit_two_thirds[-3] = expans['expans'].two_thirds_225T[1]
+fit_two_thirds[:-3] = fitted_B_two_thirds['peak_loc_err']
+fitted_B_two_thirds['peak_loc_err'] = fit_two_thirds
+
+fitted_B_two_thirds['model_function'] = fitted_B_half['model_function']
+popt, pcov = curve_fit(
+    fitted_B_two_thirds['model_function'],
+    fitted_B_two_thirds['B_array'],
+    fitted_B_two_thirds['fit_array'],
+    sigma=fitted_B_two_thirds['peak_loc_err'],
+    p0=[1e10, fitted_B_two_thirds['y_0']],
+    absolute_sigma=True
+)
+fit_params = fitted_B_two_thirds['fit_params']
+fit_params[0] = popt[0]
+fit_params[1] = popt[1] - fitted_B_two_thirds['n_post_correction']
+fitted_B_two_thirds['fit_params'] = fit_params
+
+#################
 
 color_fillings = [color_1_3, color_1_2, color_2_3]
 create_fig4_ax1(
@@ -380,6 +473,7 @@ create_fig4_ax1_ins(
     color_fillings,
     in_out_style,
     probe,
+    rasterized=rasterized,
 )
 
 #### ax2 & ax3 #### data from "discrete_v_B_dependence.py"
@@ -392,7 +486,7 @@ with open('jar/D_dependence_paper_plot.pickle', 'rb') as f:
 # ax2_1.tick_params(axis='x', which='minor', zorder=5)
 # ax2_1.xaxis.set_ticklabels([])
 # ax2_1.tick_params(labelbottom=False)
-create_fig4_ax3(ax3, D_dependence_data, color_1_2)
+create_fig4_ax3(ax3, D_dependence_data, color_1_2, shape_list)
 
 #### ax4 #### data from "Landau_fan_model_comparison.py"
 
@@ -432,13 +526,12 @@ for ax, label in zip([ax1, ax3, ax4], labels):
 
 # ax1_ins.tick_params(labelleft=False, labelbottom=False)
 
-# fig4.savefig(
-#     "fig_exports/fig4_fit_error.pdf", 
-#     dpi=300, 
-#     bbox_inches="tight", 
-#     transparent=True,
-#     backend='pdf',
-# )
+fig4.savefig(
+    "fig_exports/fig4_fit_error_1.pdf", 
+    dpi=300, 
+    transparent=True,
+    backend='pdf'
+)
 
 # %%
 
